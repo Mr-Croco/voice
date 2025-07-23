@@ -137,44 +137,7 @@ function numberToWordsRuNom(num) {
   return num.toString();
 }
 
-function formatArticle(prefix, main, extra) {
-  const upperPrefix = prefix.toUpperCase();
-  const isKR = upperPrefix.includes("KR") || upperPrefix.includes("КР");
-  const isKU = upperPrefix.includes("KU") || upperPrefix.includes("КУ");
-
-  if (isKR) {
-    const ruPrefix = "КаЭр";
-    return `${ruPrefix} ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
-  }
-
-  if (isKU) {
-    const ruPrefix = "Кудо";
-    const raw = main.toString();
-    let parts = [];
-
-    if (raw.length === 4) {
-      parts = [raw.slice(0, 2), raw.slice(2)];
-    } else if (raw.length === 5) {
-      parts = [raw.slice(0, 2), raw.slice(2)];
-    } else if (raw.length === 6) {
-      parts = [raw.slice(0, 2), raw.slice(2, 4), raw.slice(4)];
-    } else {
-      parts = [raw];
-    }
-
-    const spoken = parts.map(p => {
-      if (p.length === 2 && p.startsWith("0")) {
-        return "ноль " + numberToWordsRuNom(p[1]);
-      } else {
-        return numberToWordsRuNom(parseInt(p));
-      }
-    }).join(" ");
-
-    return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
-  }
-
-  return `${prefix}-${main}${extra ? '-' + extra : ''}`;
-}
+97479aab755f98a95c2cf5e4bb24c78bdd74e3c1
 
 
 function numberToWordsRu(num) {
