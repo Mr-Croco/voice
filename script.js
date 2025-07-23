@@ -161,6 +161,21 @@ function getQtySuffix(num) {
   return "штук";
 }
 
+
+function speakNextUnprocessed() {
+  let next = currentIndex + 1;
+  while (next < items.length && items[next].checked) {
+    next++;
+  }
+  if (next < items.length) {
+    currentIndex = next;
+    speakCurrent();
+  } else {
+    speak("Больше неотмеченных позиций нет.");
+  }
+}
+
+
 function startListening() {
   if (isListening) return;
 
@@ -182,15 +197,14 @@ function startListening() {
   recognition.start();
 }
 
+
 function handleVoiceCommand(cmd) {
   console.log("Распознано:", cmd);
   if (["готово", "положил", "ок"].includes(cmd)) {
     items[currentIndex].checked = true;
-    currentIndex++;
-    if (currentIndex < items.length) speakCurrent();
+    speakNextUnprocessed();
   } else if (["дальше", "пропускаем", "некст"].includes(cmd)) {
-    currentIndex++;
-    if (currentIndex < items.length) speakCurrent();
+    speakNextUnprocessed();
   } else if (cmd === "назад") {
     currentIndex = Math.max(0, currentIndex - 1);
     speakCurrent();
@@ -202,6 +216,7 @@ function handleVoiceCommand(cmd) {
 
   renderTable();
 }
+
 
 
 function startFromSkipped() {
