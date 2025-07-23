@@ -74,7 +74,8 @@ function renderTable() {
     row.appendChild(td1);
     row.appendChild(td2);
     row.appendChild(td3);
-    row.addEventListener("click", () => {
+    row.addEventListener("click", (e) => {
+      if (e.target.tagName.toLowerCase() === "input") return;
       currentIndex = idx;
       speakCurrent();
     });
