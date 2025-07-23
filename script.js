@@ -1,4 +1,7 @@
 
+let items = [];
+let currentIndex = 0;
+
 document.getElementById('file-input').addEventListener('change', handleFile, false);
 
 function handleFile(e) {
@@ -42,15 +45,6 @@ function handleFile(e) {
 
   reader.readAsArrayBuffer(file);
 }
-
-
-
-let items = [];
-let currentIndex = 0;
-
-document.getElementById('file-input').addEventListener('change', handleFile, false);
-
-
 
 function renderTable() {
   const tbody = document.querySelector("#items-table tbody");
