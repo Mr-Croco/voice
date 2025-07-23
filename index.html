@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Голосовой Сборщик</title>
+  <link rel="manifest" href="manifest.json" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>🛒 Голосовой сборщик товаров</h1>
+
+  <input type="file" id="file-input" accept=".xls,.xlsx" />
+  <button onclick="startReading()">▶️ Начать</button>
+  <button onclick="startFromSkipped()">↩️ Начать с пропущенных</button>
+
+  <table id="items-table">
+    <thead>
+      <tr>
+        <th>Артикул</th>
+        <th>Кол-во</th>
+        <th>Готово</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+
+body {
+  font-family: sans-serif;
+  padding: 1rem;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+th, td {
+  border: 1px solid #aaa;
+  padding: 0.5rem;
+  text-align: left;
+}
+.active-row {
+  background-color: #ffffcc;
+}

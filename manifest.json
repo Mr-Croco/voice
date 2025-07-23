@@ -1,0 +1,10 @@
+
+{
+  "name": "Голосовой сборщик",
+  "short_name": "Сборщик",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "description": "Ассистент для голосовой сборки товаров по Excel",
+  "lang": "ru-RU"
+}
