@@ -249,16 +249,56 @@ function handleVoiceCommand(cmd) {
     speakNextUnprocessed();
   } else if (["дальше", "пропускаем", "некст"].includes(cmd)) {
     speakNextUnprocessed();
-  } else if (cmd === "назад") {
-    currentIndex = Math.max(0, currentIndex - 1);
-    speakCurrent();
-  } else if (["повтори", "ещё раз", "повторить"].includes(cmd)) {
-    speakCurrent();
-  } else if (cmd.includes("начни") && cmd.includes("пропущ")) {
-    startFromSkipped();
+function formatArticle(prefix, main, extra) {
+  const upperPrefix = prefix.toUpperCase();
+  const isKR = upperPrefix === "KR" || upperPrefix === "КР";
+  const isKU = upperPrefix === "KU" || upperPrefix === "КУ";
+  const isKLT = upperPrefix === "KLT";
+  const isRT = upperPrefix === "РТ" || upperPrefix === "PT";
+
+  if (isKR) {
+    return `КаЭр ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
   }
 
-  renderTable();
+  if (isKU) {
+    const raw = main.toString();
+    const ruPrefix = "Кудо";
+    let parts = [];
+
+    if (raw.length === 4) {
+      parts = [raw.slice(0, 2), raw.slice(2)];
+    } else if (raw.length === 5) {
+      parts = [raw.slice(0, 2), raw.slice(2)];
+    } else if (raw.length === 6) {
+      parts = [raw.slice(0, 2), raw.slice(2, 4), raw.slice(4)];
+    } else {
+      parts = [raw];
+    }
+
+    const spoken = parts.map(p => {
+      if (p.length === 2 && p.startsWith("0")) {
+        return "ноль " + numberToWordsRu(p[1]);
+      } else {
+        return numberToWordsRuNom(parseInt(p));
+      }
+    }).join(" ");
+
+    return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
+  }
+
+  if (isKLT) {
+    return `КэЭлТэ ${numberToWordsRuNom(main)}`;
+  }
+
+  if (isRT) {
+    return `Эртэ ${numberToWordsRuNom(main)}`;
+  }
+
+  if (main.toLowerCase().includes("маркер")) {
+    return `Маркер`;
+  }
+
+  return `${prefix}-${main}${extra ? '-' + extra : ''}`;
 }
 
 function startFromSkipped() {
