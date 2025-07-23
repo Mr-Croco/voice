@@ -114,6 +114,29 @@ function speak(text) {
   synth.speak(utterance);
 }
 
+function numberToWordsRuNom(num) {
+  num = parseInt(num);
+  const ones = ["ноль", "один", "два", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять"];
+  const teens = ["десять", "одиннадцать", "двенадцать", "тринадцать", "четырнадцать", "пятнадцать", "шестнадцать", "семнадцать", "восемнадцать", "девятнадцать"];
+  const tens = ["", "", "двадцать", "тридцать", "сорок", "пятьдесят", "шестьдесят", "семьдесят", "восемьдесят", "девяносто"];
+  const hundreds = ["", "сто", "двести", "триста", "четыреста", "пятьсот", "шестьсот", "семьсот", "восемьсот", "девятьсот"];
+
+  if (num < 10) return ones[num];
+  if (num < 20) return teens[num - 10];
+  if (num < 100) {
+    const t = Math.floor(num / 10);
+    const o = num % 10;
+    return tens[t] + (o ? " " + ones[o] : "");
+  }
+  if (num < 1000) {
+    const h = Math.floor(num / 100);
+    const rem = num % 100;
+    return hundreds[h] + (rem ? " " + numberToWordsRuNom(rem) : "");
+  }
+
+  return num.toString();
+}
+
 function formatArticle(prefix, main, extra) {
   const upperPrefix = prefix.toUpperCase();
   const isKR = upperPrefix.includes("KR") || upperPrefix.includes("КР");
@@ -121,7 +144,7 @@ function formatArticle(prefix, main, extra) {
 
   if (isKR) {
     const ruPrefix = "КаЭр";
-    return `${ruPrefix} ${numberToWordsRu(main)}${extra ? ' дробь ' + numberToWordsRu(extra) : ''}`;
+    return `${ruPrefix} ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
   }
 
   if (isKU) {
@@ -141,9 +164,9 @@ function formatArticle(prefix, main, extra) {
 
     const spoken = parts.map(p => {
       if (p.length === 2 && p.startsWith("0")) {
-        return "ноль " + numberToWordsRu(p[1]);
+        return "ноль " + numberToWordsRuNom(p[1]);
       } else {
-        return numberToWordsRu(parseInt(p));
+        return numberToWordsRuNom(parseInt(p));
       }
     }).join(" ");
 
@@ -158,7 +181,7 @@ function numberToWordsRu(num) {
   num = parseInt(num);
   const ones = ["ноль", "одну", "две", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять"];
   const teens = ["десять", "одиннадцать", "двенадцать", "тринадцать", "четырнадцать", "пятнадцать", "шестнадцать", "семнадцать", "восемнадцать", "девятнадцать"];
-  const tens = ["", "", "двадцать", "тридцать", "сорок", "пятьдесят", "шестьдесят", "семьдесят", "восемьдесят", "девяносто"];
+  const tens = ["", "", "двадцать", "тридцать", "сОрок", "пятьдесят", "шестьдесят", "семьдесят", "восемьдесят", "девяносто"];
   const hundreds = ["", "сто", "двести", "триста", "четыреста", "пятьсот", "шестьсот", "семьсот", "восемьсот", "девятьсот"];
 
   if (num < 10) return ones[num];
@@ -171,7 +194,7 @@ function numberToWordsRu(num) {
   if (num < 1000) {
     const h = Math.floor(num / 100);
     const rem = num % 100;
-    return hundreds[h] + (rem ? " " + numberToWordsRu(rem) : "");
+    return hundreds[h] + (rem ? " " + numberToWordsRuNom(rem) : "");
   }
 
   return num.toString();
