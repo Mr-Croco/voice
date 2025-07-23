@@ -207,10 +207,17 @@ function handleVoiceCommand(cmd) {
   renderTable();
 }
 
+
 function startFromSkipped() {
-  const skipped = items.findIndex(i => !i.checked);
-  if (skipped !== -1) {
-    currentIndex = skipped;
-    speakCurrent();
+  let next = currentIndex;
+  while (next < items.length && items[next].checked) {
+    next++;
   }
+  if (next < items.length) {
+    currentIndex = next;
+    speakCurrent();
+  } else {
+    speak("Все позиции уже обработаны.");
+  }
+}
 }
