@@ -115,7 +115,7 @@ function speak(text) {
 }
 
 function formatArticle(prefix, main, extra) {
-  const ruPrefix = prefix.toUpperCase().replace("КР", "КаЭр").replace("КУ", "КэУ").replace("KR", "КаЭр").replace("KU", "КэУ");
+  const ruPrefix = prefix.toUpperCase().replace("КР", "КаЭр").replace("КУ", "Кудо").replace("KR", "КаЭр").replace("KU", "Кудо");
 
   if (ruPrefix.includes("КаЭр")) {
     return `${ruPrefix} ${numberToWordsRu(main)}${extra ? ' дробь ' + numberToWordsRu(extra) : ''}`;
