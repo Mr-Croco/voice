@@ -64,7 +64,9 @@ function renderTable() {
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     checkbox.checked = item.checked;
-    checkbox.addEventListener("change", () => {
+    checkbox.addEventListener("change", (e) => {
+      items[idx].checked = e.target.checked;
+      renderTable();
       items[idx].checked = checkbox.checked;
     });
     td3.appendChild(checkbox);
