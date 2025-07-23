@@ -67,7 +67,6 @@ function renderTable() {
     checkbox.addEventListener("change", (e) => {
       items[idx].checked = e.target.checked;
       renderTable();
-      items[idx].checked = checkbox.checked;
     });
     td3.appendChild(checkbox);
 
@@ -79,6 +78,7 @@ function renderTable() {
       currentIndex = idx;
       speakCurrent();
     });
+
     tbody.appendChild(row);
   });
 }
@@ -187,15 +187,11 @@ function handleVoiceCommand(cmd) {
   if (["готово", "положил", "ок"].includes(cmd)) {
     items[currentIndex].checked = true;
     currentIndex++;
-    if (currentIndex < items.length) {
-      speakCurrent();
-    }
+    if (currentIndex < items.length) speakCurrent();
   } else if (["дальше", "пропускаем", "некст"].includes(cmd)) {
     currentIndex++;
-    if (currentIndex < items.length) {
-      speakCurrent();
-    }
-  } else if (cmd.includes("назад")) {
+    if (currentIndex < items.length) speakCurrent();
+  } else if (cmd === "назад") {
     currentIndex = Math.max(0, currentIndex - 1);
     speakCurrent();
   } else if (["повтори", "ещё раз", "повторить"].includes(cmd)) {
@@ -206,7 +202,6 @@ function handleVoiceCommand(cmd) {
 
   renderTable();
 }
-
 
 function startFromSkipped() {
   let next = currentIndex;
@@ -219,5 +214,4 @@ function startFromSkipped() {
   } else {
     speak("Все позиции уже обработаны.");
   }
-}
 }
