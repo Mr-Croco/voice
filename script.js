@@ -126,25 +126,25 @@ function formatArticle(prefix, main, extra) {
 
   if (isKU) {
     const ruPrefix = "Кудо";
-    const raw = main.toString().replace(/^0+/, ''); // убираем лидирующие нули
-    let digits = main.toString().padStart(6, '0'); // нормализуем до 6 символов
-
+    const raw = main.toString();
     let parts = [];
-    if (digits.length === 4) {
-      parts = [digits.slice(0, 2), digits.slice(2)];
-    } else if (digits.length === 5) {
-      parts = [digits.slice(0, 2), digits.slice(2)];
-    } else if (digits.length === 6) {
-      parts = [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4)];
+
+    if (raw.length === 4) {
+      parts = [raw.slice(0, 2), raw.slice(2)];
+    } else if (raw.length === 5) {
+      parts = [raw.slice(0, 2), raw.slice(2)];
+    } else if (raw.length === 6) {
+      parts = [raw.slice(0, 2), raw.slice(2, 4), raw.slice(4)];
     } else {
-      parts = [digits];
+      parts = [raw];
     }
 
     const spoken = parts.map(p => {
       if (p.length === 2 && p.startsWith("0")) {
         return "ноль " + numberToWordsRu(p[1]);
+      } else {
+        return numberToWordsRu(parseInt(p));
       }
-      return numberToWordsRu(parseInt(p));
     }).join(" ");
 
     return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
@@ -152,6 +152,7 @@ function formatArticle(prefix, main, extra) {
 
   return `${prefix}-${main}${extra ? '-' + extra : ''}`;
 }
+
 
 function numberToWordsRu(num) {
   num = parseInt(num);
