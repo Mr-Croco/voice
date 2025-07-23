@@ -203,11 +203,17 @@ function handleVoiceCommand(cmd) {
   renderTable();
 }
 
+
 function startFromSkipped() {
-  let next = currentIndex;
-  while (next < items.length && items[next].checked) {
-    next++;
+  let next = items.findIndex(item => !item.checked);
+  if (next !== -1) {
+    currentIndex = next;
+    speakCurrent();
+  } else {
+    speak("Все позиции уже обработаны.");
   }
+}
+
   if (next < items.length) {
     currentIndex = next;
     speakCurrent();
