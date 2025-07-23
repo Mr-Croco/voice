@@ -124,10 +124,21 @@ function formatArticle(prefix, main, extra) {
     return `${ruPrefix} ${numberToWordsRu(main)}${extra ? ' дробь ' + numberToWordsRu(extra) : ''}`;
   }
 
-  if (isKU) {
-    const ruPrefix = "Кудо";
-    const padded = main.padStart(4, '0');
-    const parts = padded.match(/.{1,2}/g);
+  
+if (isKU) {
+  const ruPrefix = "Кудо";
+  const padded = main.padStart(4, '0');
+  const parts = padded.match(/.{1,2}/g);
+  const spoken = parts.map(p => {
+    if (p.startsWith("0")) {
+      return "ноль " + numberToWordsRu(p[1]);
+    } else {
+      return numberToWordsRu(parseInt(p));
+    }
+  }).join(" ");
+  return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
+}
+/g);
     return `${ruPrefix} ${parts.map(numberToWordsRu).join(' ')}${extra ? ' ' + extra : ''}`;
   }
 
