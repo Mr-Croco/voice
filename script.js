@@ -114,7 +114,6 @@ function speak(text) {
   synth.speak(utterance);
 }
 
-
 function formatArticle(prefix, main, extra) {
   const upperPrefix = prefix.toUpperCase();
   const isKR = upperPrefix.includes("KR") || upperPrefix.includes("КР");
@@ -128,13 +127,77 @@ function formatArticle(prefix, main, extra) {
   if (isKU) {
     const ruPrefix = "Кудо";
     const padded = main.padStart(4, '0');
-    const pairs = padded.match(/.{1,2}/g).join(' ');
-    return `${ruPrefix} ${pairs}${extra ? ' ' + extra : ''}`;
+    const parts = padded.match(/.{1,2}/g);
+    return `${ruPrefix} ${parts.map(numberToWordsRu).join(' ')}${extra ? ' ' + extra : ''}`;
   }
 
   return `${prefix}-${main}${extra ? '-' + extra : ''}`;
 }
 
+function numberToWordsRu(num) {
+  num = parseInt(num);
+  const ones = ["ноль", "одна", "две", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять"];
+  const teens = ["десять", "одиннадцать", "двенадцать", "тринадцать", "четырнадцать", "пятнадцать", "шестнадцать", "семнадцать", "восемнадцать", "девятнадцать"];
+  const tens = ["", "", "двадцать", "тридцать", "сорок", "пятьдесят", "шестьдесят", "семьдесят", "восемьдесят", "девяносто"];
+  const hundreds = ["", "сто", "двести", "триста", "четыреста", "пятьсот", "шестьсот", "семьсот", "восемьсот", "девятьсот"];
+
+  if (num < 10) return ones[num];
+  if (num < 20) return teens[num - 10];
+  if (num < 100) {
+    const t = Math.floor(num / 10);
+    const o = num % 10;
+    return tens[t] + (o ? " " + ones[o] : "");
+  }
+  if (num < 1000) {
+    const h = Math.floor(num / 100);
+    const rem = num % 100;
+    return hundreds[h] + (rem ? " " + numberToWordsRu(rem) : "");
+  }
+
+  return num.toString();
+}
+
+function getQtySuffix(num) {
+  const rem10 = num % 10;
+  const rem100 = num % 100;
+  if (rem10 === 1 && rem100 !== 11) return "штуку";
+  if ([2, 3, 4].includes(rem10) && ![12, 13, 14].includes(rem100)) return "штуки";
+  return "штук";
+}
+
+function startListening() {
+  if (isListening) return;
+
+  recognition = new SpeechRecognition();
+  recognition.lang = 'ru-RU';
+  recognition.interimResults = false;
+  recognition.continuous = true;
+
+  recognition.onresult = (event) => {
+    const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
+    handleVoiceCommand(transcript);
+  };
+
+  recognition.onend = () => {
+    if (isListening) recognition.start();
+  };
+
+  isListening = true;
+  recognition.start();
+}
+
+function speakNextUnprocessed() {
+  let next = currentIndex + 1;
+  while (next < items.length && items[next].checked) {
+    next++;
+  }
+  if (next < items.length) {
+    currentIndex = next;
+    speakCurrent();
+  } else {
+    speak("Больше неотмеченных позиций нет.");
+  }
+}
 
 function handleVoiceCommand(cmd) {
   console.log("Распознано:", cmd);
