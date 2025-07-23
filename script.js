@@ -212,7 +212,18 @@ function handleVoiceCommand(cmd) {
     speakNextUnprocessed();
   } else if (["дальше", "пропускаем", "некст"].includes(cmd)) {
     speakNextUnprocessed();
+  } else if (["назад"].includes(cmd)) {
+    if (currentIndex > 0) {
+      currentIndex--;
+      speakCurrent();
+    }
+  } else if (["повтори", "ещё раз"].includes(cmd)) {
+    speakCurrent();
+  }
+}
+
 function formatArticle(prefix, main, extra) {
+  // … остальной код функции
   const upperPrefix = prefix.toUpperCase();
   const isKR = upperPrefix === "KR" || upperPrefix === "КР";
   const isKU = upperPrefix === "KU" || upperPrefix === "КУ";
