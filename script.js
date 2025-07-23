@@ -1,4 +1,7 @@
 
+let items = [];
+let currentIndex = 0;
+
 document.getElementById('file-input').addEventListener('change', handleFile, false);
 
 function handleFile(e) {
@@ -42,15 +45,6 @@ function handleFile(e) {
 
   reader.readAsArrayBuffer(file);
 }
-
-
-
-let items = [];
-let currentIndex = 0;
-
-document.getElementById('file-input').addEventListener('change', handleFile, false);
-
-
 
 function renderTable() {
   const tbody = document.querySelector("#items-table tbody");
@@ -167,21 +161,6 @@ function getQtySuffix(num) {
   return "штук";
 }
 
-
-function speakNextUnprocessed() {
-  let next = currentIndex + 1;
-  while (next < items.length && items[next].checked) {
-    next++;
-  }
-  if (next < items.length) {
-    currentIndex = next;
-    speakCurrent();
-  } else {
-    speak("Больше неотмеченных позиций нет.");
-  }
-}
-
-
 function startListening() {
   if (isListening) return;
 
@@ -203,6 +182,18 @@ function startListening() {
   recognition.start();
 }
 
+function speakNextUnprocessed() {
+  let next = currentIndex + 1;
+  while (next < items.length && items[next].checked) {
+    next++;
+  }
+  if (next < items.length) {
+    currentIndex = next;
+    speakCurrent();
+  } else {
+    speak("Больше неотмеченных позиций нет.");
+  }
+}
 
 function handleVoiceCommand(cmd) {
   console.log("Распознано:", cmd);
@@ -223,19 +214,9 @@ function handleVoiceCommand(cmd) {
   renderTable();
 }
 
-
-
 function startFromSkipped() {
   let next = items.findIndex(item => !item.checked);
   if (next !== -1) {
-    currentIndex = next;
-    speakCurrent();
-  } else {
-    speak("Все позиции уже обработаны.");
-  }
-}
-
-  if (next < items.length) {
     currentIndex = next;
     speakCurrent();
   } else {
