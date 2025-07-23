@@ -114,7 +114,11 @@ function speak(text) {
   synth.speak(utterance);
 }
 
- ${numberToWordsRu(main)}${extra ? ' дробь ' + numberToWordsRu(extra) : ''}`;
+function formatArticle(prefix, main, extra) {
+  const ruPrefix = prefix.toUpperCase().replace("КР", "КаЭр").replace("КУ", "КэУ").replace("KR", "КаЭр").replace("KU", "КэУ");
+
+  if (ruPrefix.includes("КаЭр")) {
+    return `${ruPrefix} ${numberToWordsRu(main)}${extra ? ' дробь ' + numberToWordsRu(extra) : ''}`;
   }
 
   if (ruPrefix.includes("КэУ")) {
@@ -218,49 +222,4 @@ function startFromSkipped() {
   } else {
     speak("Все позиции уже обработаны.");
   }
-}
-
-
-
-function formatArticle(prefix, main, extra) {
-  const upperPrefix = prefix.toUpperCase();
-  const isKR = upperPrefix.includes("KR") || upperPrefix.includes("КР");
-  const isKU = upperPrefix.includes("KU") || upperPrefix.includes("КУ");
-
-  if (isKR) {
-    const ruPrefix = "КаЭр";
-    return `${ruPrefix} ${numberToWordsRu(main)}${extra ? ' дробь ' + numberToWordsRu(extra) : ''}`;
-  }
-
-  if (isKU) {
-    const ruPrefix = "Кудо";
-    const raw = main.toString();
-    let digits = raw;
-
-    if (raw.length < 6) {
-      digits = raw.padStart(4, '0');  // нормализуем минимум до 4
-    }
-
-    let parts = [];
-    if (digits.length === 4) {
-      parts = [digits.slice(0, 2), digits.slice(2)];
-    } else if (digits.length === 5) {
-      parts = [digits.slice(0, 2), digits.slice(2)];
-    } else if (digits.length === 6) {
-      parts = [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4)];
-    } else {
-      parts = [digits];
-    }
-
-    const spoken = parts.map(p => {
-      if (p.length === 2 && p.startsWith("0")) {
-        return "ноль " + numberToWordsRu(p[1]);
-      }
-      return numberToWordsRu(parseInt(p));
-    }).join(" ");
-
-    return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
-  }
-
-  return `${prefix}-${main}${extra ? '-' + extra : ''}`;
 }
