@@ -94,11 +94,10 @@ function startReading() {
 function speakCurrent() {
   if (!items[currentIndex]) return;
 
-  const { prefix, main, extra, qty } = items[currentIndex];
-  const articleText = formatArticle(prefix, main, extra);
+  const { article, qty } = items[currentIndex];
   const qtyText = numberToWordsRu(qty);
   const qtyEnding = getQtySuffix(qty);
-  const phrase = `${articleText} положить ${qtyText} ${qtyEnding}`;
+  const phrase = `${article} положить ${qtyText} ${qtyEnding}`;
   speak(phrase);
   renderTable();
 }
