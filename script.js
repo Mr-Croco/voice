@@ -4,41 +4,42 @@ let currentIndex = 0;
 
 document.getElementById('file-input').addEventListener('change', handleFile, false);
 
-function handleFile(event) {
-  const file = event.target.files[0];
+function handleFile(e) {
+  const file = e.target.files[0];
   const reader = new FileReader();
 
-  reader.onload = (e) => {
-    const dataBinary = new Uint8Array(e.target.result);
-    const workbook = XLSX.read(dataBinary, { type: 'array' });
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
+  reader.onload = function (e) {
+    const data = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(data, { type: 'array' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-    items = json
-      .slice(10)
-      .map((row, index) => {
-        const combined = `${row[6] || ""} ${row[7] || ""}`.trim(); // G + H
-        const article = extractArticle(combined);
-        const qtyRaw = [row[20], row[21], row[22]].filter(x => !isNaN(x)).join("");
-        const qty = parseInt(qtyRaw) || 1;
+    items = [];
+    for (let i = 8; i < json.length; i++) {
+      const row = json[i];
+      if (!row || row.length < 23) continue;
 
-        if (article) {
-          return {
-            index: index + 10,
-            article,
+      const rawArticle = row[5];
+      const u = parseInt(row[20]) || 0;
+      const v = parseInt(row[21]) || 0;
+      const w = parseInt(row[22]) || 0;
+      const qty = Math.max(u, v, w);
+
+      if (typeof rawArticle === 'string' && (rawArticle.includes("KR-") || rawArticle.includes("KU-") || rawArticle.includes("КР-") || rawArticle.includes("КУ-"))) {
+        const match = rawArticle.match(/(KR|KU|КР|КУ)[-.\s]?(\d+)[-.]?(\d+)?/i);
+        if (match) {
+          items.push({
+            article: match[0],
+            prefix: match[1],
+            main: match[2],
+            extra: match[3] || null,
             qty,
-            checked: false,
-            skipped: false,
-            rawRow: row
-          };
-        } else {
-          return null;
+            checked: false
+          });
         }
-      })
-      .filter(Boolean);
+      }
+    }
 
-    console.log("Загружено позиций:", items.length);
     renderTable();
   };
 
@@ -97,10 +98,11 @@ function startReading() {
 function speakCurrent() {
   if (!items[currentIndex]) return;
 
-  const { article, qty } = items[currentIndex];
+  const { prefix, main, extra, qty } = items[currentIndex];
+  const articleText = formatArticle(prefix, main, extra);
   const qtyText = numberToWordsRu(qty);
   const qtyEnding = getQtySuffix(qty);
-  const phrase = `${article} положить ${qtyText} ${qtyEnding}`;
+  const phrase = `${articleText} положить ${qtyText} ${qtyEnding}`;
   speak(phrase);
   renderTable();
 }
@@ -136,24 +138,26 @@ function numberToWordsRuNom(num) {
 }
 
 function extractArticle(row) {
-  const pattern = /(KR|KU|КР|КУ|KLT|РТ|PT)[-–]?(\d{2,6})(?:[-–.]?(\d+))?/i;
+  const pattern = /(KR|KU|КР|КУ|KLT|РТ|PT)[-–]?(\d+)(?:[-–.]?(\d+))?/i;
 
   for (let cell of row) {
-    if (typeof cell !== 'string') continue;
-    const match = cell.match(pattern);
+    const match = typeof cell === 'string' && cell.match(pattern);
     if (match) {
       const prefix = match[1].toUpperCase();
 
+      // 🎯 Особый случай: если префикс PT → озвучиваем всю строку
       if (prefix === "PT") {
         return row.filter(Boolean).join(", ");
       }
 
+      // Стандартная озвучка по префиксам
       return formatArticle(match[1], match[2], match[3]);
     }
   }
 
   return null;
 }
+
 
 function formatArticle(prefix, main, extra) {
   const upperPrefix = prefix.toUpperCase();
