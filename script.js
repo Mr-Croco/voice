@@ -5,6 +5,7 @@ let currentIndex = 0;
 document.getElementById('file-input').addEventListener('change', handleFile, false);
 
 function handleFile(event) {
+function handleFile(event) {
   const file = event.target.files[0];
   const reader = new FileReader();
 
@@ -16,10 +17,11 @@ function handleFile(event) {
     const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
     items = json
-      .slice(10) // ⛔ Пропускаем первые 10 строк
+      .slice(10)
       .map((row, index) => {
-        const article = extractArticle(row);
-        const qtyRaw = row.slice(20, 23).filter(x => !isNaN(x)).join("");
+        const combined = `${row[6] || ""} ${row[7] || ""}`.trim(); // G + H
+        const article = extractArticle(combined);
+        const qtyRaw = [row[20], row[21], row[22]].filter(x => !isNaN(x)).join("");
         const qty = parseInt(qtyRaw) || 1;
 
         if (article) {
@@ -35,7 +37,7 @@ function handleFile(event) {
           return null;
         }
       })
-      .filter(x => x !== null);
+      .filter(Boolean);
 
     console.log("Загружено позиций:", items.length);
     renderTable();
