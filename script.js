@@ -135,7 +135,7 @@ function numberToWordsRuNom(num) {
 }
 
 function extractArticle(row) {
-  const pattern = /(KR|KU|КР|КУ|KLT|РТ|PT)[-–]?(\\d{2,6})(?:[-–.]?(\\d+))?/i;
+  const pattern = /(KR|KU|КР|КУ|KLT|РТ|PT)[-–]?(\d{2,6})(?:[-–.]?(\d+))?/i;
 
   for (let cell of row) {
     if (typeof cell !== 'string') continue;
