@@ -4,41 +4,37 @@ let currentIndex = 0;
 
 document.getElementById('file-input').addEventListener('change', handleFile, false);
 
-function handleFile(e) {
-  const file = e.target.files[0];
+function handleFile(event) {
+  const file = event.target.files[0];
   const reader = new FileReader();
 
-  reader.onload = function (e) {
-    const data = new Uint8Array(e.target.result);
-    const workbook = XLSX.read(data, { type: 'array' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  reader.onload = (e) => {
+    const dataBinary = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(dataBinary, { type: 'array' });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
     const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-    items = [];
-    for (let i = 8; i < json.length; i++) {
-      const row = json[i];
-      if (!row || row.length < 23) continue;
+    items = json
+      .map((row, index) => {
+        const article = extractArticle(row);
+        const qtyRaw = row.slice(20, 23).filter(x => !isNaN(x)).join("");
+        const qty = parseInt(qtyRaw) || 1;
 
-      const rawArticle = row[5];
-      const u = parseInt(row[20]) || 0;
-      const v = parseInt(row[21]) || 0;
-      const w = parseInt(row[22]) || 0;
-      const qty = Math.max(u, v, w);
-
-      if (typeof rawArticle === 'string' && (rawArticle.includes("KR-") || rawArticle.includes("KU-") || rawArticle.includes("КР-") || rawArticle.includes("КУ-"))) {
-        const match = rawArticle.match(/(KR|KU|КР|КУ)[-.\s]?(\d+)[-.]?(\d+)?/i);
-        if (match) {
-          items.push({
-            article: match[0],
-            prefix: match[1],
-            main: match[2],
-            extra: match[3] || null,
+        if (article) {
+          return {
+            index,
+            article,
             qty,
-            checked: false
-          });
+            checked: false,
+            skipped: false,
+            rawRow: row
+          };
+        } else {
+          return null;
         }
-      }
-    }
+      })
+      .filter(x => x !== null);
 
     renderTable();
   };
@@ -138,19 +134,19 @@ function numberToWordsRuNom(num) {
 }
 
 function extractArticle(row) {
-  const pattern = /(KR|KU|КР|КУ|KLT|РТ|PT)[-–]?(\d+)(?:[-–.]?(\d+))?/i;
+  const pattern = /(KR|KU|КР|КУ|KLT|РТ|PT)[-–]?(\\d{2,6})(?:[-–.]?(\\d+))?/i;
 
   for (let cell of row) {
-    const match = typeof cell === 'string' && cell.match(pattern);
+    if (typeof cell !== 'string') continue;
+    const match = cell.match(pattern);
     if (match) {
       const prefix = match[1].toUpperCase();
 
-      // 🎯 Особый случай: если префикс PT → озвучиваем всю строку
+      // 🎯 Если PT — озвучиваем всю строку
       if (prefix === "PT") {
         return row.filter(Boolean).join(", ");
       }
 
-      // Стандартная озвучка по префиксам
       return formatArticle(match[1], match[2], match[3]);
     }
   }
