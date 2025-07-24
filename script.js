@@ -138,16 +138,39 @@ function numberToWordsRuNom(num) {
 }
 
 function formatArticle(prefix, main, extra) {
-  const ruPrefix = prefix.toUpperCase().replace("КР", "КаЭр").replace("КУ", "КэУ").replace("KR", "КаЭр").replace("KU", "КэУ");
+  const upperPrefix = prefix.toUpperCase();
+  const isKR = upperPrefix.includes("KR") || upperPrefix.includes("КР");
+  const isKU = upperPrefix.includes("KU") || upperPrefix.includes("КУ");
 
-  if (ruPrefix.includes("КаЭр")) {
+  if (isKR) {
+    const ruPrefix = "КаЭр";
     return `${ruPrefix} ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
   }
 
-  if (ruPrefix.includes("КэУ")) {
-    const padded = main.padStart(4, '0');
-    const pairs = padded.match(/.{1,2}/g).join(' ');
-    return `${ruPrefix} ${pairs}${extra ? ' ' + extra : ''}`;
+  if (isKU) {
+    const ruPrefix = "Кудо";
+    const raw = main.toString();
+    let parts = [];
+
+    if (raw.length === 4) {
+      parts = [raw.slice(0, 2), raw.slice(2)];
+    } else if (raw.length === 5) {
+      parts = [raw.slice(0, 2), raw.slice(2)];
+    } else if (raw.length === 6) {
+      parts = [raw.slice(0, 2), raw.slice(2, 4), raw.slice(4)];
+    } else {
+      parts = [raw];
+    }
+
+    const spoken = parts.map(p => {
+      if (p.length === 2 && p.startsWith("0")) {
+        return "ноль " + numberToWordsRuNom(p[1]);
+      } else {
+        return numberToWordsRuNom(parseInt(p));
+      }
+    }).join(" ");
+
+    return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
   }
 
   return `${prefix}-${main}${extra ? '-' + extra : ''}`;
