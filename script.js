@@ -234,22 +234,35 @@ function getQtySuffix(num) {
 function startListening() {
   if (isListening) return;
 
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   recognition = new SpeechRecognition();
   recognition.lang = 'ru-RU';
-  recognition.interimResults = false;
   recognition.continuous = true;
+  recognition.interimResults = false;
 
-  recognition.onresult = (event) => {
+  recognition.onresult = function (event) {
     const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
+    console.log("Распознано:", transcript);
     handleVoiceCommand(transcript);
   };
 
-  recognition.onend = () => {
-    if (isListening) recognition.start();
+  recognition.onerror = function (event) {
+    console.error("Ошибка распознавания:", event.error);
+    if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+      isListening = false;
+    }
+  };
+
+  recognition.onend = function () {
+    console.log("Прослушка завершена");
+    if (isListening) {
+      setTimeout(() => recognition.start(), 300); // безопасный перезапуск
+    }
   };
 
   isListening = true;
   recognition.start();
+  console.log("Прослушка запущена");
 }
 
 function speakNextUnprocessed() {
