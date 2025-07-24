@@ -5,7 +5,6 @@ let currentIndex = 0;
 document.getElementById('file-input').addEventListener('change', handleFile, false);
 
 function handleFile(event) {
-function handleFile(event) {
   const file = event.target.files[0];
   const reader = new FileReader();
 
