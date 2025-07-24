@@ -81,6 +81,8 @@ function renderTable() {
 
     tbody.appendChild(row);
   });
+
+  document.getElementById("count").textContent = `Загружено позиций: ${items.length}`;
 }
 
 const synth = window.speechSynthesis;
