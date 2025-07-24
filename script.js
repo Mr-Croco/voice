@@ -16,6 +16,7 @@ function handleFile(event) {
     const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
     items = json
+      .slice(10) // ⛔ Пропускаем первые 10 строк
       .map((row, index) => {
         const article = extractArticle(row);
         const qtyRaw = row.slice(20, 23).filter(x => !isNaN(x)).join("");
@@ -23,7 +24,7 @@ function handleFile(event) {
 
         if (article) {
           return {
-            index,
+            index: index + 10,
             article,
             qty,
             checked: false,
@@ -36,6 +37,7 @@ function handleFile(event) {
       })
       .filter(x => x !== null);
 
+    console.log("Загружено позиций:", items.length);
     renderTable();
   };
 
@@ -141,7 +143,6 @@ function extractArticle(row) {
     if (match) {
       const prefix = match[1].toUpperCase();
 
-      // 🎯 Если PT — озвучиваем всю строку
       if (prefix === "PT") {
         return row.filter(Boolean).join(", ");
       }
@@ -152,7 +153,6 @@ function extractArticle(row) {
 
   return null;
 }
-
 
 function formatArticle(prefix, main, extra) {
   const upperPrefix = prefix.toUpperCase();
