@@ -26,7 +26,7 @@ function handleFile(e) {
       const qty = Math.max(u, v, w);
 
       if (typeof rawArticle === 'string' && /(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?\d+/i.test(rawArticle)) {
-        const match = rawArticle.match(/(KR|KU|КР|КУ)[-.\s]?(\d+)[-.]?(\d+)?/i);
+        const match = rawArticle.match(/(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?(\d+)[-.]?(\d+)?/i);
         if (match) {
           items.push({
             article: match[0],
@@ -194,6 +194,12 @@ function formatArticle(prefix, main, extra) {
       }
     }).join(" ");
 
+    const isKLT = upperPrefix === "KLT";
+
+    if (isKLT) {
+  return `КэЭлТэ ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
+}
+    
     return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
   }
 
