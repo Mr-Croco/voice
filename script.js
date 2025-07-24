@@ -114,11 +114,34 @@ function speak(text) {
   synth.speak(utterance);
 }
 
+function numberToWordsRuNom(num) {
+  num = parseInt(num);
+  const ones = ["ноль", "один", "два", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять"];
+  const teens = ["десять", "одиннадцать", "двенадцать", "тринадцать", "четырнадцать", "пятнадцать", "шестнадцать", "семнадцать", "восемнадцать", "девятнадцать"];
+  const tens = ["", "", "двадцать", "тридцать", "сорок", "пятьдесят", "шестьдесят", "семьдесят", "восемьдесят", "девяносто"];
+  const hundreds = ["", "сто", "двести", "триста", "четыреста", "пятьсот", "шестьсот", "семьсот", "восемьсот", "девятьсот"];
+
+  if (num < 10) return ones[num];
+  if (num < 20) return teens[num - 10];
+  if (num < 100) {
+    const t = Math.floor(num / 10);
+    const o = num % 10;
+    return tens[t] + (o ? " " + ones[o] : "");
+  }
+  if (num < 1000) {
+    const h = Math.floor(num / 100);
+    const rem = num % 100;
+    return hundreds[h] + (rem ? " " + numberToWordsRuNom(rem) : "");
+  }
+
+  return num.toString();
+}
+
 function formatArticle(prefix, main, extra) {
   const ruPrefix = prefix.toUpperCase().replace("КР", "КаЭр").replace("КУ", "КэУ").replace("KR", "КаЭр").replace("KU", "КэУ");
 
   if (ruPrefix.includes("КаЭр")) {
-    return `${ruPrefix} ${numberToWordsRu(main)}${extra ? ' дробь ' + numberToWordsRu(extra) : ''}`;
+    return `${ruPrefix} ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
   }
 
   if (ruPrefix.includes("КэУ")) {
@@ -147,7 +170,7 @@ function numberToWordsRu(num) {
   if (num < 1000) {
     const h = Math.floor(num / 100);
     const rem = num % 100;
-    return hundreds[h] + (rem ? " " + numberToWordsRu(rem) : "");
+    return hundreds[h] + (rem ? " " + numberToWordsRuNom(rem) : "");
   }
 
   return num.toString();
