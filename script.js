@@ -184,10 +184,6 @@ function extractArticle(row) {
     if (match) {
       const prefix = match[1].toUpperCase();
 
-      // 🎯 Особый случай: если префикс PT → озвучиваем всю строку
-      if (prefix === "PT") {
-        return row.filter(Boolean).join(", ");
-      }
 
       // Стандартная озвучка по префиксам
       return formatArticle(match[1], match[2], match[3]);
