@@ -19,6 +19,17 @@ function handleFile(e) {
       const row = json[i];
       if (!row) continue;
 
+      let fullRowText = "";
+      if (typeof row[5] === "string") {
+        fullRowText = row[5].trim();
+      } else {
+      fullRowText = row.slice(5, 20)
+        .filter(cell => typeof cell === 'string' && cell.trim())
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+      }
+      
       const rawArticle = row[5];
       const u = parseInt(row[20]) || 0;
       const v = parseInt(row[21]) || 0;
