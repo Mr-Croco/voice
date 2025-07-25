@@ -17,7 +17,7 @@ function handleFile(e) {
     items = [];
     for (let i = 8; i < json.length; i++) {
       const row = json[i];
-      if (!row) return continue;
+      if (!row || row.length < 23) continue;
 
       const rawArticle = row[5];
       const u = parseInt(row[20]) || 0;
