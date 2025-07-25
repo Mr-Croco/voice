@@ -19,7 +19,36 @@ function handleFile(e) {
       const row = json[i];
       if (!row) continue;
 
-      const rawArticle = row[5];
+      // Собираем всю строку товара из колонок F–T
+      const fullLine = row.slice(5, 20)
+        .filter(cell => typeof cell === 'string' && cell.trim())
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      // Если ничего нет — пропускаем
+      if (!fullLine) return;
+  
+      // Пытаемся выделить артикул (если это KR/KU/KLT)
+      const articleMatch = fullLine.match(/^([A-ZА-Я]{2,4})[-\s\.]?(\d+)(?:[-\.]?(\d+))?/i);
+      let prefix = null, main = null, extra = null;
+    
+      if (articleMatch) {
+        prefix = articleMatch[1];
+        main = articleMatch[2];
+        extra = articleMatch[3] || null;
+      }
+
+      // Добавляем в список товаров
+      items.push({
+        article: fullLine,
+        prefix,
+        main,
+        extra,
+        qty,
+        row,
+        checked: false
+        });
       const u = parseInt(row[20]) || 0;
       const v = parseInt(row[21]) || 0;
       const w = parseInt(row[22]) || 0;
@@ -104,16 +133,11 @@ function speakCurrent() {
   const { prefix, main, extra, qty } = items[currentIndex];
   let articleText;
 
-if (["KR", "КР", "KU", "КУ", "KLT"].includes(prefix.toUpperCase())) {
-  articleText = formatArticle(prefix, main, extra);
-} else {
-  // Прочитать всю строку, если это не KR, KU или KLT
-  articleText = items[currentIndex].row
-  .filter(cell => cell && typeof cell === 'string')
-  .join(' ')
-  .replace(/\s+/g, ' ')
-  .trim();
-   }
+  if (["KR", "КР", "KU", "КУ", "KLT"].includes((prefix || "").toUpperCase())) {
+    articleText = formatArticle(prefix, main, extra);
+  } else {
+    articleText = items[currentIndex].article;
+  }
   
   const qtyText = numberToWordsRu(qty);
   const qtyEnding = getQtySuffix(qty);
