@@ -15,60 +15,51 @@ function handleFile(e) {
     const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
     items = [];
-    for (let i = 8; i < json.length; i++) {
-      const row = json[i];
-      if (!row) continue;
+    for (let i = 10; i < sheetData.length; i++) {
+  const row = sheetData[i];
+  if (!row) continue;
 
-      // Собираем всю строку товара из колонок F–T
-      const fullLine = row.slice(5, 20)
-        .filter(cell => typeof cell === 'string' && cell.trim())
-        .join(" ")
-        .replace(/\s+/g, " ")
-        .trim();
+  // Получаем текст товара из колонок F–T
+  const fullRowText = row.slice(5, 20)
+    .filter(cell => typeof cell === 'string' && cell.trim())
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-      // Если ничего нет — пропускаем
-      if (!fullLine) return;
-  
-      // Пытаемся выделить артикул (если это KR/KU/KLT)
-      const articleMatch = fullLine.match(/^([A-ZА-Я]{2,4})[-\s\.]?(\d+)(?:[-\.]?(\d+))?/i);
-      let prefix = null, main = null, extra = null;
-    
-      if (articleMatch) {
-        prefix = articleMatch[1];
-        main = articleMatch[2];
-        extra = articleMatch[3] || null;
-      }
+  if (!fullRowText) continue;
 
-      // Добавляем в список товаров
-      items.push({
-        article: fullLine,
-        prefix,
-        main,
-        extra,
-        qty,
-        row,
-        checked: false
-        });
-      const u = parseInt(row[20]) || 0;
-      const v = parseInt(row[21]) || 0;
-      const w = parseInt(row[22]) || 0;
-      const qty = Math.max(u, v, w);
+  // Считаем количество из колонок U, V, W
+  const qtyRaw = [row[20], row[21], row[22]]
+    .filter(v => typeof v === 'number' || (typeof v === 'string' && v.trim()))
+    .map(Number)
+    .reduce((a, b) => a + b, 0);
 
-      if (typeof rawArticle === 'string' && /(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?\d+/i.test(rawArticle)) {
-        const match = rawArticle.match(/(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?(\d+)[-.]?(\d+)?/i);
-        if (match) {
-          items.push({
-            article: match[0],
-            prefix: match[1],
-            main: match[2],
-            extra: match[3] || null,
-            qty,
-            row, // ← сохраняем строку для озвучки полностью
-            checked: false
-          });
-        }
-      }
-    }
+  const qty = Math.round(qtyRaw);
+
+  // Ищем артикула KU/KR/KLT
+  const match = fullRowText.match(/(KU|KR|KLT)[-.\s]?(\d+)[-.]?(\d+)?/i);
+
+  if (match) {
+    items.push({
+      article: match[0],
+      prefix: match[1],
+      main: match[2],
+      extra: match[3] || null,
+      qty,
+      checked: false
+    });
+  } else {
+    // Все прочие позиции читаем как есть
+    items.push({
+      article: fullRowText,
+      prefix: null,
+      main: fullRowText,
+      extra: null,
+      qty,
+      checked: false
+    });
+  }
+}
 
     renderTable();
   };
