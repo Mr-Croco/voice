@@ -34,6 +34,7 @@ function handleFile(e) {
             main: match[2],
             extra: match[3] || null,
             qty,
+            row, // ← сохраняем строку для озвучки полностью
             checked: false
           });
         }
@@ -107,12 +108,12 @@ if (["KR", "КР", "KU", "КУ", "KLT"].includes(prefix.toUpperCase())) {
   articleText = formatArticle(prefix, main, extra);
 } else {
   // Прочитать всю строку, если это не KR, KU или KLT
-  articleText = row
-    .filter(cell => cell && typeof cell === 'string')
-    .join(' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+  articleText = items[currentIndex].row
+  .filter(cell => cell && typeof cell === 'string')
+  .join(' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+   }
   
   const qtyText = numberToWordsRu(qty);
   const qtyEnding = getQtySuffix(qty);
