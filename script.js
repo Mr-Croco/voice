@@ -37,7 +37,7 @@ function handleFile(e) {
       const qty = Math.max(u, v, w);
 
       if (typeof rawArticle === 'string' && /(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?\d+/i.test(rawArticle)) {
-        const match = fullRowText.match(/(KU|KR|KLT)[-.\s]?([A-ZА-Я0-9]+)(?:[-.\s]?([A-ZА-Я0-9]+))?/i);
+        const match = fullRowText.match(/(KU|KR|KLT)[-.\s]?([A-ZА-Я0-9]+(?:[-]?[A-ZА-Я0-9]+)?)/i);
         if (match) {
           items.push({
             article: match[0],
