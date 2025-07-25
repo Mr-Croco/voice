@@ -25,8 +25,8 @@ function handleFile(e) {
       const w = parseInt(row[22]) || 0;
       const qty = Math.max(u, v, w);
 
-      if (typeof rawArticle === 'string' && (rawArticle.includes("KR-") || rawArticle.includes("KU-") || rawArticle.includes("РљР -") || rawArticle.includes("РљРЈ-"))) {
-        const match = rawArticle.match(/(KR|KU|РљР |РљРЈ)[-.\s]?(\d+)[-.]?(\d+)?/i);
+      if (typeof rawArticle === 'string' && /(KR|KU|РљР |РљРЈ|KLT|Р Рў|PT)[-.\s]?\d+/i.test(rawArticle)) {
+        const match = rawArticle.match(/(KR|KU|РљР |РљРЈ|KLT|Р Рў|PT)[-.\s]?(\d+)[-.]?(\d+)?/i);
         if (match) {
           items.push({
             article: match[0],
@@ -34,6 +34,7 @@ function handleFile(e) {
             main: match[2],
             extra: match[3] || null,
             qty,
+            row, // в†ђ СЃРѕС…СЂР°РЅСЏРµРј СЃС‚СЂРѕРєСѓ РґР»СЏ РѕР·РІСѓС‡РєРё РїРѕР»РЅРѕСЃС‚СЊСЋ
             checked: false
           });
         }
@@ -101,7 +102,19 @@ function speakCurrent() {
   if (!items[currentIndex]) return;
 
   const { prefix, main, extra, qty } = items[currentIndex];
-  const articleText = formatArticle(prefix, main, extra);
+  let articleText;
+
+if (["KR", "РљР ", "KU", "РљРЈ", "KLT"].includes(prefix.toUpperCase())) {
+  articleText = formatArticle(prefix, main, extra);
+} else {
+  // РџСЂРѕС‡РёС‚Р°С‚СЊ РІСЃСЋ СЃС‚СЂРѕРєСѓ, РµСЃР»Рё СЌС‚Рѕ РЅРµ KR, KU РёР»Рё KLT
+  articleText = items[currentIndex].row
+  .filter(cell => cell && typeof cell === 'string')
+  .join(' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+   }
+  
   const qtyText = numberToWordsRu(qty);
   const qtyEnding = getQtySuffix(qty);
   const phrase = `${articleText} РїРѕР»РѕР¶РёС‚СЊ ${qtyText} ${qtyEnding}`;
@@ -194,6 +207,12 @@ function formatArticle(prefix, main, extra) {
       }
     }).join(" ");
 
+    const isKLT = upperPrefix === "KLT";
+
+    if (isKLT) {
+  return `РљСЌР­Р»РўСЌ ${numberToWordsRuNom(main)}${extra ? ' РґСЂРѕР±СЊ ' + numberToWordsRuNom(extra) : ''}`;
+}
+    
     return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
   }
 
