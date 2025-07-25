@@ -17,7 +17,7 @@ function handleFile(e) {
     items = [];
     for (let i = 8; i < json.length; i++) {
       const row = json[i];
-      if (!row) continue;
+      if (!row) return continue;
 
       const rawArticle = row[5];
       const u = parseInt(row[20]) || 0;
@@ -25,8 +25,8 @@ function handleFile(e) {
       const w = parseInt(row[22]) || 0;
       const qty = Math.max(u, v, w);
 
-      if (typeof rawArticle === 'string' && /(KR|KU|РљР |РљРЈ|KLT|Р Рў|PT)[-.\s]?\d+/i.test(rawArticle)) {
-        const match = rawArticle.match(/(KR|KU|РљР |РљРЈ|KLT|Р Рў|PT)[-.\s]?(\d+)[-.]?(\d+)?/i);
+      if (typeof rawArticle === 'string' && (rawArticle.includes("KR-") || rawArticle.includes("KU-") || rawArticle.includes("РљР -") || rawArticle.includes("РљРЈ-"))) {
+        const match = rawArticle.match(/(KR|KU|РљР |РљРЈ)[-.\s]?(\d+)[-.]?(\d+)?/i);
         if (match) {
           items.push({
             article: match[0],
@@ -34,7 +34,6 @@ function handleFile(e) {
             main: match[2],
             extra: match[3] || null,
             qty,
-            row, // в†ђ СЃРѕС…СЂР°РЅСЏРµРј СЃС‚СЂРѕРєСѓ РґР»СЏ РѕР·РІСѓС‡РєРё РїРѕР»РЅРѕСЃС‚СЊСЋ
             checked: false
           });
         }
@@ -102,19 +101,7 @@ function speakCurrent() {
   if (!items[currentIndex]) return;
 
   const { prefix, main, extra, qty } = items[currentIndex];
-  let articleText;
-
-if (["KR", "РљР ", "KU", "РљРЈ", "KLT"].includes(prefix.toUpperCase())) {
-  articleText = formatArticle(prefix, main, extra);
-} else {
-  // РџСЂРѕС‡РёС‚Р°С‚СЊ РІСЃСЋ СЃС‚СЂРѕРєСѓ, РµСЃР»Рё СЌС‚Рѕ РЅРµ KR, KU РёР»Рё KLT
-  articleText = items[currentIndex].row
-  .filter(cell => cell && typeof cell === 'string')
-  .join(' ')
-  .replace(/\s+/g, ' ')
-  .trim();
-   }
-  
+  const articleText = formatArticle(prefix, main, extra);
   const qtyText = numberToWordsRu(qty);
   const qtyEnding = getQtySuffix(qty);
   const phrase = `${articleText} РїРѕР»РѕР¶РёС‚СЊ ${qtyText} ${qtyEnding}`;
@@ -207,12 +194,6 @@ function formatArticle(prefix, main, extra) {
       }
     }).join(" ");
 
-    const isKLT = upperPrefix === "KLT";
-
-    if (isKLT) {
-  return `РљСЌР­Р»РўСЌ ${numberToWordsRuNom(main)}${extra ? ' РґСЂРѕР±СЊ ' + numberToWordsRuNom(extra) : ''}`;
-}
-    
     return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
   }
 
@@ -253,35 +234,22 @@ function getQtySuffix(num) {
 function startListening() {
   if (isListening) return;
 
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   recognition = new SpeechRecognition();
   recognition.lang = 'ru-RU';
-  recognition.continuous = true;
   recognition.interimResults = false;
+  recognition.continuous = true;
 
-  recognition.onresult = function (event) {
+  recognition.onresult = (event) => {
     const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
-    console.log("Р Р°СЃРїРѕР·РЅР°РЅРѕ:", transcript);
     handleVoiceCommand(transcript);
   };
 
-  recognition.onerror = function (event) {
-    console.error("РћС€РёР±РєР° СЂР°СЃРїРѕР·РЅР°РІР°РЅРёСЏ:", event.error);
-    if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-      isListening = false;
-    }
-  };
-
-  recognition.onend = function () {
-    console.log("РџСЂРѕСЃР»СѓС€РєР° Р·Р°РІРµСЂС€РµРЅР°");
-    if (isListening) {
-      setTimeout(() => recognition.start(), 300); // Р±РµР·РѕРїР°СЃРЅС‹Р№ РїРµСЂРµР·Р°РїСѓСЃРє
-    }
+  recognition.onend = () => {
+    if (isListening) recognition.start();
   };
 
   isListening = true;
   recognition.start();
-  console.log("РџСЂРѕСЃР»СѓС€РєР° Р·Р°РїСѓС‰РµРЅР°");
 }
 
 function speakNextUnprocessed() {
