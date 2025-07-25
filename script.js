@@ -19,17 +19,6 @@ function handleFile(e) {
       const row = json[i];
       if (!row) continue;
 
-      let fullRowText = "";
-      if (typeof row[5] === "string") {
-        fullRowText = row[5].trim();
-      } else {
-      fullRowText = row.slice(5, 20)
-        .filter(cell => typeof cell === 'string' && cell.trim())
-        .join(" ")
-        .replace(/\s+/g, " ")
-        .trim();
-      }
-      
       const rawArticle = row[5];
       const u = parseInt(row[20]) || 0;
       const v = parseInt(row[21]) || 0;
@@ -37,7 +26,7 @@ function handleFile(e) {
       const qty = Math.max(u, v, w);
 
       if (typeof rawArticle === 'string' && /(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?\d+/i.test(rawArticle)) {
-        const match = fullRowText.match(/(KU|KR|KLT)[-.\s]?([A-ZА-Я0-9]+(?:[-]?[A-ZА-Я0-9]+)?)/i);
+        const match = rawArticle.match(/(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?(\d+)[-.]?(\d+)?/i);
         if (match) {
           items.push({
             article: match[0],
@@ -221,7 +210,7 @@ function formatArticle(prefix, main, extra) {
     const isKLT = upperPrefix === "KLT";
 
     if (isKLT) {
-  return `КаЭлТэ ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
+  return `КэЭлТэ ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
 }
     
     return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
