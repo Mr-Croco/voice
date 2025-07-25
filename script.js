@@ -210,7 +210,7 @@ function formatArticle(prefix, main, extra) {
     const isKLT = upperPrefix === "KLT";
 
     if (isKLT) {
-  return `КэЭлТэ ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
+  return `КаЭлТэ ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
 }
     
     return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
