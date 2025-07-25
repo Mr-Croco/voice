@@ -15,51 +15,31 @@ function handleFile(e) {
     const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
     items = [];
-    for (let i = 10; i < sheetData.length; i++) {
-  const row = sheetData[i];
-  if (!row) continue;
+    for (let i = 8; i < json.length; i++) {
+      const row = json[i];
+      if (!row) continue;
 
-  // Получаем текст товара из колонок F–T
-  const fullRowText = row.slice(5, 20)
-    .filter(cell => typeof cell === 'string' && cell.trim())
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
+      const rawArticle = row[5];
+      const u = parseInt(row[20]) || 0;
+      const v = parseInt(row[21]) || 0;
+      const w = parseInt(row[22]) || 0;
+      const qty = Math.max(u, v, w);
 
-  if (!fullRowText) continue;
-
-  // Считаем количество из колонок U, V, W
-  const qtyRaw = [row[20], row[21], row[22]]
-    .filter(v => typeof v === 'number' || (typeof v === 'string' && v.trim()))
-    .map(Number)
-    .reduce((a, b) => a + b, 0);
-
-  const qty = Math.round(qtyRaw);
-
-  // Ищем артикула KU/KR/KLT
-  const match = fullRowText.match(/(KU|KR|KLT)[-.\s]?(\d+)[-.]?(\d+)?/i);
-
-  if (match) {
-    items.push({
-      article: match[0],
-      prefix: match[1],
-      main: match[2],
-      extra: match[3] || null,
-      qty,
-      checked: false
-    });
-  } else {
-    // Все прочие позиции читаем как есть
-    items.push({
-      article: fullRowText,
-      prefix: null,
-      main: fullRowText,
-      extra: null,
-      qty,
-      checked: false
-    });
-  }
-}
+      if (typeof rawArticle === 'string' && /(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?\d+/i.test(rawArticle)) {
+        const match = rawArticle.match(/(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?(\d+)[-.]?(\d+)?/i);
+        if (match) {
+          items.push({
+            article: match[0],
+            prefix: match[1],
+            main: match[2],
+            extra: match[3] || null,
+            qty,
+            row, // ← сохраняем строку для озвучки полностью
+            checked: false
+          });
+        }
+      }
+    }
 
     renderTable();
   };
@@ -124,11 +104,16 @@ function speakCurrent() {
   const { prefix, main, extra, qty } = items[currentIndex];
   let articleText;
 
-  if (["KR", "КР", "KU", "КУ", "KLT"].includes((prefix || "").toUpperCase())) {
-    articleText = formatArticle(prefix, main, extra);
-  } else {
-    articleText = items[currentIndex].article;
-  }
+if (["KR", "КР", "KU", "КУ", "KLT"].includes(prefix.toUpperCase())) {
+  articleText = formatArticle(prefix, main, extra);
+} else {
+  // Прочитать всю строку, если это не KR, KU или KLT
+  articleText = items[currentIndex].row
+  .filter(cell => cell && typeof cell === 'string')
+  .join(' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+   }
   
   const qtyText = numberToWordsRu(qty);
   const qtyEnding = getQtySuffix(qty);
@@ -168,13 +153,17 @@ function numberToWordsRuNom(num) {
 }
 
 function extractArticle(row) {
-  const pattern = /(KR|KU|КР|КУ|KLT)[-–]?(\d+)(?:[-–.]?(\d+))?/i;
+  const pattern = /(KR|KU|КР|КУ|KLT|РТ|PT)[-–]?(\d+)(?:[-–.]?(\d+))?/i;
 
   for (let cell of row) {
     const match = typeof cell === 'string' && cell.match(pattern);
     if (match) {
       const prefix = match[1].toUpperCase();
 
+      // 🎯 Особый случай: если префикс PT → озвучиваем всю строку
+      if (prefix === "PT") {
+        return row.filter(Boolean).join(", ");
+      }
 
       // Стандартная озвучка по префиксам
       return formatArticle(match[1], match[2], match[3]);
@@ -186,9 +175,6 @@ function extractArticle(row) {
 
 
 function formatArticle(prefix, main, extra) {
-  if (!prefix) {
-  return main; // если нет префикса, то произносим как есть
-}
   const upperPrefix = prefix.toUpperCase();
   const isKR = upperPrefix.includes("KR") || upperPrefix.includes("КР");
   const isKU = upperPrefix.includes("KU") || upperPrefix.includes("КУ");
@@ -224,7 +210,7 @@ function formatArticle(prefix, main, extra) {
     const isKLT = upperPrefix === "KLT";
 
     if (isKLT) {
-  return `КаЭЛТЭ ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
+  return `КэЭлТэ ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
 }
     
     return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
