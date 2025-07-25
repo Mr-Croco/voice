@@ -216,7 +216,7 @@ function formatArticle(prefix, main, extra) {
     return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
   }
 
-  return `${prefix}-${main}${extra ? '-' + extra : ''}`;
+  return null;
 }
 
 function numberToWordsRu(num) {
