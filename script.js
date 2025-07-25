@@ -25,8 +25,8 @@ function handleFile(e) {
       const w = parseInt(row[22]) || 0;
       const qty = Math.max(u, v, w);
 
-      if (typeof rawArticle === 'string' && (rawArticle.includes("KR-") || rawArticle.includes("KU-") || rawArticle.includes("КР-") || rawArticle.includes("КУ-"))) {
-        const match = rawArticle.match(/(KR|KU|КР|КУ)[-.\s]?(\d+)[-.]?(\d+)?/i);
+      if (typeof rawArticle === 'string' && /(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?\d+/i.test(rawArticle)) {
+        const match = rawArticle.match(/(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?(\d+)[-.]?(\d+)?/i);
         if (match) {
           items.push({
             article: match[0],
@@ -34,6 +34,7 @@ function handleFile(e) {
             main: match[2],
             extra: match[3] || null,
             qty,
+            row, // ← сохраняем строку для озвучки полностью
             checked: false
           });
         }
@@ -101,7 +102,19 @@ function speakCurrent() {
   if (!items[currentIndex]) return;
 
   const { prefix, main, extra, qty } = items[currentIndex];
-  const articleText = formatArticle(prefix, main, extra);
+  let articleText;
+
+if (["KR", "КР", "KU", "КУ", "KLT"].includes(prefix.toUpperCase())) {
+  articleText = formatArticle(prefix, main, extra);
+} else {
+  // Прочитать всю строку, если это не KR, KU или KLT
+  articleText = items[currentIndex].row
+  .filter(cell => cell && typeof cell === 'string')
+  .join(' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+   }
+  
   const qtyText = numberToWordsRu(qty);
   const qtyEnding = getQtySuffix(qty);
   const phrase = `${articleText} положить ${qtyText} ${qtyEnding}`;
@@ -194,6 +207,12 @@ function formatArticle(prefix, main, extra) {
       }
     }).join(" ");
 
+    const isKLT = upperPrefix === "KLT";
+
+    if (isKLT) {
+  return `КэЭлТэ ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
+}
+    
     return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
   }
 
