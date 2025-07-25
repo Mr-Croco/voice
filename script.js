@@ -186,6 +186,9 @@ function extractArticle(row) {
 
 
 function formatArticle(prefix, main, extra) {
+  if (!prefix) {
+  return main; // если нет префикса, то произносим как есть
+}
   const upperPrefix = prefix.toUpperCase();
   const isKR = upperPrefix.includes("KR") || upperPrefix.includes("КР");
   const isKU = upperPrefix.includes("KU") || upperPrefix.includes("КУ");
