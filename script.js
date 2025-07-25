@@ -234,7 +234,7 @@ function formatArticle(prefix, main, extra) {
     const isKLT = upperPrefix === "KLT";
 
     if (isKLT) {
-  return `КАЭЛТЭ ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
+  return `КаЭЛТЭ ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
 }
     
     return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
