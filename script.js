@@ -101,7 +101,19 @@ function speakCurrent() {
   if (!items[currentIndex]) return;
 
   const { prefix, main, extra, qty } = items[currentIndex];
-  const articleText = formatArticle(prefix, main, extra);
+  let articleText;
+
+if (["KR", "КР", "KU", "КУ", "KLT"].includes(prefix.toUpperCase())) {
+  articleText = formatArticle(prefix, main, extra);
+} else {
+  // Прочитать всю строку, если это не KR, KU или KLT
+  articleText = row
+    .filter(cell => cell && typeof cell === 'string')
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+  
   const qtyText = numberToWordsRu(qty);
   const qtyEnding = getQtySuffix(qty);
   const phrase = `${articleText} положить ${qtyText} ${qtyEnding}`;
