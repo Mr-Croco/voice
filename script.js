@@ -177,7 +177,7 @@ function numberToWordsRuNom(num) {
 }
 
 function extractArticle(row) {
-  const pattern = /(KR|KU|КР|КУ|KLT|РТ|PT)[-–]?(\d+)(?:[-–.]?(\d+))?/i;
+  const pattern = /(KR|KU|КР|КУ|KLT)[-–]?(\d+)(?:[-–.]?(\d+))?/i;
 
   for (let cell of row) {
     const match = typeof cell === 'string' && cell.match(pattern);
@@ -234,7 +234,7 @@ function formatArticle(prefix, main, extra) {
     const isKLT = upperPrefix === "KLT";
 
     if (isKLT) {
-  return `КэЭлТэ ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
+  return `КАЭЛТЭ ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
 }
     
     return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
