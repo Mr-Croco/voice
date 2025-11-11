@@ -14,24 +14,32 @@ function handleFile(e) {
     const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
     items = [];
-    let totalRows = 0; // ← добавляем счётчик всех целевых строк
+    let totalRows = 0; // количество пронумерованных строк в файле (товарных строк по накладной)
 
     for (let i = 8; i < json.length; i++) {
       const row = json[i];
       if (!row) continue;
 
+      // Надёжно прочитать первую ячейку и понять, есть ли в ней номер строки
       const firstCell = row[0];
-      const isNumbered = firstCell && !isNaN(parseInt(firstCell));
-      if (isNumbered) totalRows++; // ← считаем только пронумерованные
+      const firstCellStr = firstCell === undefined || firstCell === null ? "" : String(firstCell).trim();
+      const isNumbered = firstCellStr !== "" && !isNaN(parseInt(firstCellStr, 10));
+      if (isNumbered) totalRows++;
 
+      // Количество: берём максимум из трёх колонок (как было)
       const u = parseInt(row[20]) || 0;
       const v = parseInt(row[21]) || 0;
       const w = parseInt(row[22]) || 0;
       const qty = Math.max(u, v, w);
 
-      // Пропускаем нулевое количество
+      // Пропускаем строки, где количество = 0
       if (qty <= 0) continue;
 
+      // Если нужна жёсткая проверка: оставляем только пронумерованные товарные строки.
+      // Если хочешь разрешить строки без номера, можно убрать следующий блок.
+      if (!isNumbered) continue;
+
+      // Собираем текстовые ячейки для названия / артикула
       const textCells = row.filter(c => typeof c === 'string' && c.trim() !== '');
       if (textCells.length === 0) continue;
 
@@ -58,11 +66,8 @@ function handleFile(e) {
       });
     }
 
-    // ✅ теперь считаем только целевые (пронумерованные) строки
-    document.getElementById("count").textContent =
-      `Загружено позиций: ${items.length} / Всего строк: ${totalRows}`;
-
-    renderTable();
+    // Передаём totalRows в renderTable, чтобы он корректно показал "Всего строк"
+    renderTable(totalRows);
   };
 
   reader.readAsArrayBuffer(file);
