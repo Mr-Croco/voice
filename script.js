@@ -14,30 +14,25 @@ function handleFile(e) {
     const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
     items = [];
-    let totalRows = 0; // количество пронумерованных строк в файле (товарных строк по накладной)
+    let totalRows = 0; // количество пронумерованных строк в файле
 
     for (let i = 8; i < json.length; i++) {
       const row = json[i];
       if (!row) continue;
 
-      // Надёжно прочитать первую ячейку и понять, есть ли в ней номер строки
+      // Проверяем, есть ли номер в первой колонке
       const firstCell = row[0];
       const firstCellStr = firstCell === undefined || firstCell === null ? "" : String(firstCell).trim();
       const isNumbered = firstCellStr !== "" && !isNaN(parseInt(firstCellStr, 10));
-      if (isNumbered) totalRows++;
+      if (isNumbered) totalRows++; // считаем для "Всего строк"
 
-      // Количество: берём максимум из трёх колонок (как было)
+      // Количество товара
       const u = parseInt(row[20]) || 0;
       const v = parseInt(row[21]) || 0;
       const w = parseInt(row[22]) || 0;
       const qty = Math.max(u, v, w);
 
-      // Пропускаем строки, где количество = 0
-      if (qty <= 0) continue;
-
-      // Если нужна жёсткая проверка: оставляем только пронумерованные товарные строки.
-      // Если хочешь разрешить строки без номера, можно убрать следующий блок.
-      if (!isNumbered) continue;
+      if (qty <= 0) continue; // пропускаем нулевое количество
 
       // Собираем текстовые ячейки для названия / артикула
       const textCells = row.filter(c => typeof c === 'string' && c.trim() !== '');
@@ -66,7 +61,6 @@ function handleFile(e) {
       });
     }
 
-    // Передаём totalRows в renderTable, чтобы он корректно показал "Всего строк"
     renderTable(totalRows);
   };
 
