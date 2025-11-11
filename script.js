@@ -13,8 +13,8 @@ function handleFile(e) {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
+    const totalRows = json.length - 8; // всего строк с 9-й по конец
     items = [];
-    const totalRows = json.length - 8; // строки файла с 8-й и далее
 
     for (let i = 8; i < json.length; i++) {
       const row = json[i];
@@ -26,33 +26,40 @@ function handleFile(e) {
       const w = parseInt(row[22]) || 0;
       const qty = Math.max(u, v, w);
 
-      if (qty <= 0) continue; // пропускаем нулевое количество
+      // --- новая логика извлечения всех товаров ---
+      if (row && row.length > 0) {
+        const textCells = row.filter(c => typeof c === 'string' && c.trim() !== '');
+        if (textCells.length === 0) continue;
 
-      if (typeof rawArticle === 'string' && /(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?\d+/i.test(rawArticle)) {
-        const match = rawArticle.match(/(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?(\d+)[-.]?(\d+)?/i);
+        const rawText = textCells.join(' ').trim();
+        const match = rawText.match(/(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?([\w\d]+)?/i);
+
+        let article = rawText;
+        let prefix = null, main = null, extra = null;
+
         if (match) {
-          items.push({
-            article: match[0],
-            prefix: match[1],
-            main: match[2],
-            extra: match[3] || null,
-            qty,
-            row,
-            checked: false
-          });
+          article = match[0];
+          prefix = match[1];
+          main = match[2] || null;
         }
+
+        items.push({
+          article,
+          prefix,
+          main,
+          extra,
+          qty,
+          row,
+          checked: false
+        });
       }
     }
 
-    // Выводим обе величины
-    document.getElementById("count").textContent = `Загружено позиций: ${items.length} / Всего строк: ${totalRows}`;
-
-    renderTable();
+    renderTable(totalRows);
   };
 
   reader.readAsArrayBuffer(file);
 }
-
 
 function renderTable(totalRows = null) {
   const tbody = document.querySelector("#items-table tbody");
