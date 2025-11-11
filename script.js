@@ -33,7 +33,7 @@ function handleFile(e) {
         if (textCells.length === 0) continue;
 
         const rawText = textCells.join(' ').trim();
-        const match = rawText.match(/(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?([\w\d]+)?/i);
+        const match = rawText.match(/(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?([\w\d.-]+)/i);
 
         let article = rawText;
         let prefix = null, main = null, extra = null;
