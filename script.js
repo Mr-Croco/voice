@@ -13,57 +13,61 @@ function handleFile(e) {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-    const totalRows = json.length - 8; // всего строк с 9-й по конец
     items = [];
+    let totalRows = 0; // ← добавляем счётчик всех целевых строк
 
     for (let i = 8; i < json.length; i++) {
       const row = json[i];
       if (!row) continue;
 
-      const rawArticle = row[5];
+      const firstCell = row[0];
+      const isNumbered = firstCell && !isNaN(parseInt(firstCell));
+      if (isNumbered) totalRows++; // ← считаем только пронумерованные
+
       const u = parseInt(row[20]) || 0;
       const v = parseInt(row[21]) || 0;
       const w = parseInt(row[22]) || 0;
       const qty = Math.max(u, v, w);
 
-      
-      // ⛔ Пропускаем строки, где количество равно нулю
+      // Пропускаем нулевое количество
       if (qty <= 0) continue;
 
-      // --- новая логика извлечения всех товаров ---
-      if (row && row.length > 0) {
-        const textCells = row.filter(c => typeof c === 'string' && c.trim() !== '');
-        if (textCells.length === 0) continue;
+      const textCells = row.filter(c => typeof c === 'string' && c.trim() !== '');
+      if (textCells.length === 0) continue;
 
-        const rawText = textCells.join(' ').trim();
-        const match = rawText.match(/(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?([\w\d]+)?/i);
+      const rawText = textCells.join(' ').trim();
+      const match = rawText.match(/(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?([\w\d]+)?/i);
 
-        let article = rawText;
-        let prefix = null, main = null, extra = null;
+      let article = rawText;
+      let prefix = null, main = null, extra = null;
 
-        if (match) {
-          article = match[0];
-          prefix = match[1];
-          main = match[2] || null;
-        }
-
-        items.push({
-          article,
-          prefix,
-          main,
-          extra,
-          qty,
-          row,
-          checked: false
-        });
+      if (match) {
+        article = match[0];
+        prefix = match[1];
+        main = match[2] || null;
       }
+
+      items.push({
+        article,
+        prefix,
+        main,
+        extra,
+        qty,
+        row,
+        checked: false
+      });
     }
 
-    renderTable(totalRows);
+    // ✅ теперь считаем только целевые (пронумерованные) строки
+    document.getElementById("count").textContent =
+      `Загружено позиций: ${items.length} / Всего строк: ${totalRows}`;
+
+    renderTable();
   };
 
   reader.readAsArrayBuffer(file);
 }
+
 
 function renderTable(totalRows = null) {
   const tbody = document.querySelector("#items-table tbody");
