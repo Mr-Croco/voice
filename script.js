@@ -68,7 +68,7 @@ function handleFile(e) {
 }
 
 
-function renderTable(totalRows = null) {
+function renderTable(totalRows) {
   const tbody = document.querySelector("#items-table tbody");
   tbody.innerHTML = "";
 
