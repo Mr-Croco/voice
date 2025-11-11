@@ -26,6 +26,10 @@ function handleFile(e) {
       const w = parseInt(row[22]) || 0;
       const qty = Math.max(u, v, w);
 
+      
+      // ⛔ Пропускаем строки, где количество равно нулю
+      if (qty <= 0) continue;
+
       // --- новая логика извлечения всех товаров ---
       if (row && row.length > 0) {
         const textCells = row.filter(c => typeof c === 'string' && c.trim() !== '');
