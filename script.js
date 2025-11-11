@@ -1,4 +1,3 @@
-
 let items = [];
 let currentIndex = 0;
 
@@ -14,7 +13,9 @@ function handleFile(e) {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
+    const totalRows = json.length - 8; // всего строк с 9-й по конец
     items = [];
+
     for (let i = 8; i < json.length; i++) {
       const row = json[i];
       if (!row) continue;
@@ -25,29 +26,42 @@ function handleFile(e) {
       const w = parseInt(row[22]) || 0;
       const qty = Math.max(u, v, w);
 
-      if (typeof rawArticle === 'string' && /(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?\d+/i.test(rawArticle)) {
-        const match = rawArticle.match(/(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?(\d+)[-.]?(\d+)?/i);
+      // --- новая логика извлечения всех товаров ---
+      if (row && row.length > 0) {
+        const textCells = row.filter(c => typeof c === 'string' && c.trim() !== '');
+        if (textCells.length === 0) continue;
+
+        const rawText = textCells.join(' ').trim();
+        const match = rawText.match(/(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?([\w\d]+)?/i);
+
+        let article = rawText;
+        let prefix = null, main = null, extra = null;
+
         if (match) {
-          items.push({
-            article: match[0],
-            prefix: match[1],
-            main: match[2],
-            extra: match[3] || null,
-            qty,
-            row, // ← сохраняем строку для озвучки полностью
-            checked: false
-          });
+          article = match[0];
+          prefix = match[1];
+          main = match[2] || null;
         }
+
+        items.push({
+          article,
+          prefix,
+          main,
+          extra,
+          qty,
+          row,
+          checked: false
+        });
       }
     }
 
-    renderTable();
+    renderTable(totalRows);
   };
 
   reader.readAsArrayBuffer(file);
 }
 
-function renderTable() {
+function renderTable(totalRows = null) {
   const tbody = document.querySelector("#items-table tbody");
   tbody.innerHTML = "";
 
@@ -67,7 +81,7 @@ function renderTable() {
     checkbox.checked = item.checked;
     checkbox.addEventListener("change", (e) => {
       items[idx].checked = e.target.checked;
-      renderTable();
+      renderTable(totalRows);
     });
     td3.appendChild(checkbox);
 
@@ -83,7 +97,9 @@ function renderTable() {
     tbody.appendChild(row);
   });
 
-  document.getElementById("count").textContent = `Загружено позиций: ${items.length}`;
+  let text = `Загружено позиций: ${items.length}`;
+  if (totalRows !== null) text += ` / всего строк: ${totalRows}`;
+  document.getElementById("count").textContent = text;
 }
 
 const synth = window.speechSynthesis;
@@ -104,17 +120,17 @@ function speakCurrent() {
   const { prefix, main, extra, qty } = items[currentIndex];
   let articleText;
 
-if (["KR", "КР", "KU", "КУ", "KLT"].includes(prefix.toUpperCase())) {
-  articleText = formatArticle(prefix, main, extra);
-} else {
-  // Прочитать всю строку, если это не KR, KU или KLT
-  articleText = items[currentIndex].row
-  .filter(cell => cell && typeof cell === 'string')
-  .join(' ')
-  .replace(/\s+/g, ' ')
-  .trim();
-   }
-  
+  if (["KR", "КР", "KU", "КУ", "KLT"].includes(prefix?.toUpperCase())) {
+    articleText = formatArticle(prefix, main, extra);
+  } else {
+    // Прочитать всю строку, если это не KR, KU или KLT
+    articleText = items[currentIndex].row
+      .filter(cell => cell && typeof cell === 'string')
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   const qtyText = numberToWordsRu(qty);
   const qtyEnding = getQtySuffix(qty);
   const phrase = `${articleText} положить ${qtyText} ${qtyEnding}`;
@@ -132,7 +148,7 @@ function speak(text) {
 function numberToWordsRuNom(num) {
   num = parseInt(num);
   const ones = ["ноль", "один", "два", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять"];
-  const teens = ["десять", "одиннадцать", "двенадцать", "тринадцать", "четырнадцать", "пятнадцать", "шестнадцать", "семнадцать", "восемнадцать", "девятнадцать"];
+  const teens = ["десять", "одиннадцать", "двенадцать", "тринадцать", "четырнадцать", "пятнадцать", "шестнадцать", "восемьсот", "девятнадцать"];
   const tens = ["", "", "двадцать", "тридцать", "сОрок", "пятьдесят", "шестьдесят", "семьдесят", "восемьдесят", "девяносто"];
   const hundreds = ["", "сто", "двести", "триста", "четыреста", "пятьсот", "шестьсот", "семьсот", "восемьсот", "девятьсот"];
 
@@ -173,7 +189,6 @@ function extractArticle(row) {
   return null;
 }
 
-
 function formatArticle(prefix, main, extra) {
   const upperPrefix = prefix.toUpperCase();
   const isKR = upperPrefix.includes("KR") || upperPrefix.includes("КР");
@@ -210,9 +225,9 @@ function formatArticle(prefix, main, extra) {
     const isKLT = upperPrefix === "KLT";
 
     if (isKLT) {
-  return `КэЭлТэ ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
-}
-    
+      return `КэЭлТэ ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
+    }
+
     return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
   }
 
@@ -222,7 +237,7 @@ function formatArticle(prefix, main, extra) {
 function numberToWordsRu(num) {
   num = parseInt(num);
   const ones = ["ноль", "одну", "две", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять"];
-  const teens = ["десять", "одиннадцать", "двенадцать", "тринадцать", "четырнадцать", "пятнадцать", "шестнадцать", "семнадцать", "восемнадцать", "девятнадцать"];
+  const teens = ["десять", "одиннадцать", "двенадцать", "тринадцать", "четырнадцать", "пятнадцать", "шестнадцать", "восемьсот", "девятнадцать"];
   const tens = ["", "", "двадцать", "тридцать", "сОрок", "пятьдесят", "шестьдесят", "семьдесят", "восемьдесят", "девяносто"];
   const hundreds = ["", "сто", "двести", "триста", "четыреста", "пятьсот", "шестьсот", "семьсот", "восемьсот", "девятьсот"];
 
