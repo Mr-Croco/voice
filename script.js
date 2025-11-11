@@ -14,6 +14,8 @@ function handleFile(e) {
     const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
     items = [];
+    const totalRows = json.length - 8; // строки файла с 8-й и далее
+
     for (let i = 8; i < json.length; i++) {
       const row = json[i];
       if (!row) continue;
@@ -24,39 +26,28 @@ function handleFile(e) {
       const w = parseInt(row[22]) || 0;
       const qty = Math.max(u, v, w);
 
-      // ⛔ Пропускаем строки, где количество равно нулю
-      if (qty <= 0) continue;
+      if (qty <= 0) continue; // пропускаем нулевое количество
 
-      // --- логика извлечения всех товаров (включая KU-H311, маркер черный и т.п.) ---
-      if (row && row.length > 0) {
-        const textCells = row.filter(c => typeof c === 'string' && c.trim() !== '');
-        if (textCells.length === 0) continue;
-
-        const rawText = textCells.join(' ').trim();
-        const match = rawText.match(/(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?([\w\d]+)?/i);
-
-        let article = rawText;
-        let prefix = null, main = null, extra = null;
-
+      if (typeof rawArticle === 'string' && /(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?\d+/i.test(rawArticle)) {
+        const match = rawArticle.match(/(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?(\d+)[-.]?(\d+)?/i);
         if (match) {
-          article = match[0];
-          prefix = match[1];
-          main = match[2] || null;
+          items.push({
+            article: match[0],
+            prefix: match[1],
+            main: match[2],
+            extra: match[3] || null,
+            qty,
+            row,
+            checked: false
+          });
         }
-
-        items.push({
-          article,
-          prefix,
-          main,
-          extra,
-          qty,
-          row,
-          checked: false
-        });
       }
     }
 
-    renderTable(totalRows);
+    // Выводим обе величины
+    document.getElementById("count").textContent = `Загружено позиций: ${items.length} / Всего строк: ${totalRows}`;
+
+    renderTable();
   };
 
   reader.readAsArrayBuffer(file);
