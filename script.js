@@ -13,9 +13,7 @@ function handleFile(e) {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-    const totalRows = json.length - 8; // всего строк с 9-й по конец
     items = [];
-
     for (let i = 8; i < json.length; i++) {
       const row = json[i];
       if (!row) continue;
@@ -26,7 +24,10 @@ function handleFile(e) {
       const w = parseInt(row[22]) || 0;
       const qty = Math.max(u, v, w);
 
-      // --- новая логика извлечения всех товаров ---
+      // ⛔ Пропускаем строки, где количество равно нулю
+      if (qty <= 0) continue;
+
+      // --- логика извлечения всех товаров (включая KU-H311, маркер черный и т.п.) ---
       if (row && row.length > 0) {
         const textCells = row.filter(c => typeof c === 'string' && c.trim() !== '');
         if (textCells.length === 0) continue;
@@ -55,7 +56,7 @@ function handleFile(e) {
       }
     }
 
-    renderTable(totalRows);
+    renderTable();
   };
 
   reader.readAsArrayBuffer(file);
