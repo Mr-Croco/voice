@@ -56,7 +56,7 @@ function handleFile(e) {
       }
     }
 
-    renderTable();
+    renderTable(totalRows);
   };
 
   reader.readAsArrayBuffer(file);
