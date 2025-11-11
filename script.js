@@ -25,22 +25,33 @@ function handleFile(e) {
       const w = parseInt(row[22]) || 0;
       const qty = Math.max(u, v, w);
 
-      if (typeof rawArticle === 'string' && /(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?\d+/i.test(rawArticle)) {
-        const match = rawArticle.match(/(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?(\d+)[-.]?(\d+)?/i);
-        if (match) {
-          items.push({
-            article: match[0],
-            prefix: match[1],
-            main: match[2],
-            extra: match[3] || null,
-            qty,
-            row, // ← сохраняем строку для озвучки полностью
-            checked: false
-          });
-        }
-      }
-    }
+      // --- новая логика извлечения всех товаров ---
+if (row && row.length > 0) {
+  const textCells = row.filter(c => typeof c === 'string' && c.trim() !== '');
+  if (textCells.length === 0) continue;
 
+  const rawText = textCells.join(' ').trim();
+  const match = rawText.match(/(KR|KU|КР|КУ|KLT|РТ|PT)[-.\s]?([\w\d]+)?/i);
+
+  let article = rawText;
+  let prefix = null, main = null, extra = null;
+
+  if (match) {
+    article = match[0];
+    prefix = match[1];
+    main = match[2] || null;
+  }
+
+  items.push({
+    article,
+    prefix,
+    main,
+    extra,
+    qty,
+    row,
+    checked: false
+  });
+}
     renderTable();
   };
 
