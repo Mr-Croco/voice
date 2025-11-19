@@ -27,10 +27,21 @@ function handleFile(e) {
   const reader = new FileReader();
 
   reader.onload = function (ev) {
-    const data = new Uint8Array(ev.target.result);
-    const workbook = XLSX.read(data, { type: 'array' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const json = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+    try {
+        // Чтение с указанием кодировки UTF-8
+        const workbook = XLSX.read(ev.target.result, { 
+            type: 'binary', 
+            encoding: 'utf-8' 
+        });
+        
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(sheet, { 
+            header: 1, 
+            raw: false,
+            cellDates: true,
+            dateNF: 'YYYY-MM-DD' 
+        });
+
 
     // Попробуем детектировать тип документа
     const detected = detectDocType(json);
@@ -45,7 +56,8 @@ function handleFile(e) {
     setDocTypeLabel(currentConfig ? currentConfig.label : 'Не определён');
   };
 
-  reader.readAsArrayBuffer(file);
+  reader.readAsBinaryString(file);
+;
 }
 
 // ---------- Типы документов и их конфиги ----------
