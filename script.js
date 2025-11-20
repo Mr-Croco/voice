@@ -1,13 +1,18 @@
-```javascript
 // script.js — универсальный "солдат" для чтения разных 1С-документов
+// Полная версия — вставь целиком вместо старого script.js
+
 let items = [];
 let currentIndex = 0;
 let currentConfig = null;
 let totalRowsInSheet = null;
 
-document.getElementById('file-input').addEventListener('change', handleFile, false);
+let recognition = null;
+let isListening = false;
 
-// Создаём индикатор типа документа (если в index.html его нет — создадим динамически)
+const synth = window.speechSynthesis;
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+
+// Если нет индикатора типа — создаём
 if (!document.getElementById('doc-type')) {
   const el = document.createElement('div');
   el.id = 'doc-type';
@@ -21,18 +26,12 @@ function setDocTypeLabel(text) {
   el.textContent = text ? `Тип распознанного документа: ${text}` : '';
 }
 
-// =======================
-// Mojibake fixer + utils
-// =======================
+// ====== Mojibake fixer + utils ======
 function fixWin1251Mojibake(str) {
   if (!str || typeof str !== 'string') return str;
-  // Быстрая эвристика: в mojibake часто встречаются символы Ã, Ð, Â и т.п.
-  if (!/[ÃÐÂÕÕ]/.test(str) && !/[ÃÐ]/.test(str)) {
-    // дополнитель упрощённая проверка: если нет характерных символов — не трогаем
-    if (!/[ÃÐ]/.test(str)) return str;
-  }
+  // Если в строке нет подозрительных символов — не трогаем
+  if (!/[ÃÐÂ]/.test(str)) return str;
   try {
-    // decodeURIComponent(escape(...)) часто восстанавливает корректную строку, если это результат ошибочной интерпретации CP1251 как UTF-8
     return decodeURIComponent(escape(str));
   } catch (e) {
     return str;
@@ -49,14 +48,15 @@ function arrayBufferToBinaryString(buf) {
   return result;
 }
 
-// ---------- handleFile: загрузка и детект типа ----------
+// ====== File input ======
+document.getElementById('file-input').addEventListener('change', handleFile, false);
+
 function handleFile(e) {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
 
   reader.onload = function (ev) {
-    // преобразуем ArrayBuffer в binary string для SheetJS с указанием codepage
     let binary;
     if (ev.target.result instanceof ArrayBuffer) {
       binary = arrayBufferToBinaryString(ev.target.result);
@@ -64,38 +64,42 @@ function handleFile(e) {
       binary = ev.target.result;
     }
 
-    // Попробуем указать codepage:1251 — если сборка xlsx поддерживает cptable, это поможет с xls
     let workbook;
     try {
+      // Попытка с codepage — если сборка sheetjs поддерживает cptable
       workbook = XLSX.read(binary, { type: 'binary', codepage: 1251, raw: false });
     } catch (err) {
-      // fallback: без codepage
-      workbook = XLSX.read(binary, { type: 'binary', raw: false });
+      // fallback
+      try {
+        workbook = XLSX.read(binary, { type: 'binary', raw: false });
+      } catch (err2) {
+        console.error('Ошибка чтения файла XLS/XLSX:', err2);
+        alert('Не удалось прочитать файл: проверьте консоль (Ctrl+Shift+I).');
+        return;
+      }
     }
 
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const json = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
 
-    // Попробуем детектировать тип документа
     const detected = detectDocType(json);
     currentConfig = getConfigForType(detected);
     totalRowsInSheet = json.length;
 
-    // Парсим лист по конфигу
     items = parseWithConfig(json, currentConfig);
+
+    console.log('detected document type:', detected, 'parsed items:', items.length);
 
     renderTable(totalRowsInSheet);
     currentIndex = 0;
     setDocTypeLabel(currentConfig ? currentConfig.label : 'Не определён');
   };
 
-  // читаем как ArrayBuffer (stabler for all browsers), затем конвертим
   reader.readAsArrayBuffer(file);
 }
 
-// ---------- Типы документов и их конфиги ----------
+// ====== Detect + configs ======
 function detectDocType(json) {
-  // Просматриваем первые 30 строк (или до конца) и ищем сигнатуры
   const upto = Math.min(30, json.length);
   for (let i = 0; i < upto; i++) {
     const rowArr = (json[i] || []).map(cell => typeof cell === 'string' ? fixWin1251Mojibake(cell) : cell);
@@ -106,69 +110,28 @@ function detectDocType(json) {
     if (row.includes('счет-фактура') || row.includes('счёт-фактура')) return 'ufd';
     if (row.includes('универсальный передаточный документ') || row.includes('упд')) return 'ufd';
     if (row.includes('перемещение')) return 'perem';
-    if (row.includes('счет') || row.includes('счёт') || row.includes('счет №')) {
-      // Чтобы не спутать с 'расходная' — проверка выше пройдёт раньше
-      return 'schet';
-    }
+    if (row.includes('счет') || row.includes('счёт') || row.includes('счет №')) return 'schet';
   }
-
-  // fallback — если ничего не найдено, считаем расходной (как прежняя логика)
   return 'rashod';
 }
 
 function getConfigForType(type) {
-  // индексы: A=0, B=1, C=2, ... (нуль-индекс)
   const commonQty = [20, 22]; // U..W => 20..22
   switch (type) {
     case 'rashod':
-      return {
-        type: 'rashod',
-        label: 'Расходная накладная',
-        startRowIndex: 8,             // i = 8 -> 9-я строка в Excel
-        articleCols: [3, 19],         // D..T
-        qtyCols: commonQty,           // U..W
-        numCols: null
-      };
+      return { type: 'rashod', label: 'Расходная накладная', startRowIndex: 8, articleCols: [3, 19], qtyCols: commonQty, numCols: null };
     case 'schet':
-      return {
-        type: 'schet',
-        label: 'Счёт',
-        startRowIndex: 20,            // 21-я строка
-        articleCols: [3, 19],         // D..T
-        qtyCols: commonQty,           // U..W
-        numCols: null
-      };
+      return { type: 'schet', label: 'Счёт', startRowIndex: 20, articleCols: [3, 19], qtyCols: commonQty, numCols: null };
     case 'perem':
-      return {
-        type: 'perem',
-        label: 'Перемещение',
-        startRowIndex: 8,             // 9-я строка
-        articleCols: [3, 19],         // D..T
-        qtyCols: commonQty,           // U..W
-        numCols: [1, 2]               // B..C
-      };
+      return { type: 'perem', label: 'Перемещение', startRowIndex: 8, articleCols: [3, 19], qtyCols: commonQty, numCols: [1,2] };
     case 'ufd':
-      return {
-        type: 'ufd',
-        label: 'Счёт-фактура / УПД',
-        startRowIndex: 16,            // 17-я строка
-        articleCols: [16, 43],        // Q..AR -> 16..43
-        qtyCols: [68, 74],            // BQ..BW -> 68..74
-        numCols: [11, 15]             // L..P -> 11..15
-      };
+      return { type: 'ufd', label: 'Счёт-фактура / УПД', startRowIndex: 16, articleCols: [16, 43], qtyCols: [68, 74], numCols: [11, 15] };
     default:
-      return {
-        type: 'unknown',
-        label: 'Неизвестный',
-        startRowIndex: 8,
-        articleCols: [3, 19],
-        qtyCols: commonQty,
-        numCols: null
-      };
+      return { type: 'unknown', label: 'Неизвестный', startRowIndex: 8, articleCols: [3, 19], qtyCols: commonQty, numCols: null };
   }
 }
 
-// ---------- Разбор листа с учётом конфигурации ----------
+// ====== Parse sheet with config ======
 function parseWithConfig(json, cfg) {
   const out = [];
   if (!cfg) return out;
@@ -176,17 +139,15 @@ function parseWithConfig(json, cfg) {
   for (let i = cfg.startRowIndex; i < json.length; i++) {
     const row = json[i] || [];
 
-    // собираем текст для артикула из диапазона articleCols (и фиксируем возможные крякозябры)
     const articleRangeText = collectRangeText(row, cfg.articleCols[0], cfg.articleCols[1]);
 
-    // также попытаемся взять "основной" артикул из знакомой F (index 5) — если там что-то есть
     const primaryCellRaw = row[5] || '';
     const primaryCell = typeof primaryCellRaw === 'string' ? fixWin1251Mojibake(primaryCellRaw) : primaryCellRaw;
 
     const candidateText = (articleRangeText || '') + ' ' + (primaryCell || '');
     const fullArticleText = (candidateText || '').toString().trim();
 
-    // вычисляем количество как максимум из qtyCols
+    // qty
     let qty = 0;
     if (cfg.qtyCols && cfg.qtyCols.length === 2) {
       for (let c = cfg.qtyCols[0]; c <= cfg.qtyCols[1]; c++) {
@@ -197,13 +158,11 @@ function parseWithConfig(json, cfg) {
       }
     }
 
-    // пропуск пустых/нулевых строк
     if (!fullArticleText || qty <= 0) continue;
 
-    // попытка извлечь артикула и префикс по паттерну
-    const extracted = extractArticleFromTextRange(row, cfg.articleCols[0], cfg.articleCols[1]) 
-                      || extractArticleFromAnyCell(row) 
-                      || { article: fullArticleText, prefix: null, main: null, extra: null };
+    const extracted = extractArticleFromTextRange(row, cfg.articleCols[0], cfg.articleCols[1])
+                    || extractArticleFromAnyCell(row)
+                    || { article: fullArticleText, prefix: null, main: null, extra: null };
 
     out.push({
       article: extracted.article,
@@ -214,14 +173,14 @@ function parseWithConfig(json, cfg) {
       row,
       checked: false,
       type: cfg.type,
-      sheetRowIndex: i // для отладки/индикации
+      sheetRowIndex: i
     });
   }
 
   return out;
 }
 
-// вспомогательная: собрать текст из диапазона колонок (inclusively)
+// ====== Helpers: collect text from range ======
 function collectRangeText(row, startCol, endCol) {
   if (!row) return '';
   const parts = [];
@@ -236,19 +195,18 @@ function collectRangeText(row, startCol, endCol) {
   return parts.join(' ').replace(/\s+/g, ' ').trim();
 }
 
-// ищем артикулы KR/KU/KLT/PT в указанном диапазоне
+// ====== Extract article by patterns ======
 function extractArticleFromTextRange(row, startCol, endCol) {
   const pattern = /(KR|KU|КР|КУ|KLT|PT|РТ)[-.\s–—]?([\w\d.-]+)/i;
   for (let c = startCol; c <= endCol; c++) {
     let cell = row[c];
-    if (!cell) continue;
+    if (cell === undefined || cell === null) continue;
     if (typeof cell !== 'string') cell = String(cell);
     cell = fixWin1251Mojibake(cell);
     const match = cell.match(pattern);
     if (match) {
       const prefix = match[1];
       const main = match[2] || null;
-      // PT special: return whole joined range if PT is found and that's desired behavior
       if (prefix.toUpperCase() === 'PT') {
         return { article: collectRangeText(row, startCol, endCol), prefix: 'PT', main: null, extra: null };
       }
@@ -258,7 +216,6 @@ function extractArticleFromTextRange(row, startCol, endCol) {
   return null;
 }
 
-// Более «жирный» поиск по всем ячейкам строки (fallback)
 function extractArticleFromAnyCell(row) {
   const pattern = /(KR|KU|КР|КУ|KLT|PT|РТ)[-.\s–—]?([\w\d.-]+)/i;
   for (let cell of row) {
@@ -270,7 +227,6 @@ function extractArticleFromAnyCell(row) {
       const prefix = match[1];
       const main = match[2] || null;
       if (prefix.toUpperCase() === 'PT') {
-        // возвращаем строку, собранную из всех непустых ячеек (фикснутые)
         const joined = row.map(c => (c === undefined || c === null) ? '' : fixWin1251Mojibake(String(c))).filter(Boolean).join(', ');
         return { article: joined, prefix: 'PT', main: null, extra: null };
       }
@@ -280,9 +236,10 @@ function extractArticleFromAnyCell(row) {
   return null;
 }
 
-// ---------- Рендер таблицы ----------
+// ====== Render table ======
 function renderTable(totalRows = null) {
   const tbody = document.querySelector("#items-table tbody");
+  if (!tbody) return;
   tbody.innerHTML = "";
 
   items.forEach((item, idx) => {
@@ -290,10 +247,10 @@ function renderTable(totalRows = null) {
     if (idx === currentIndex) rowEl.classList.add("active-row");
 
     const td1 = document.createElement("td");
-    td1.textContent = item.article;
+    td1.textContent = item.article || '';
 
     const td2 = document.createElement("td");
-    td2.textContent = item.qty;
+    td2.textContent = item.qty ?? '';
 
     const td3 = document.createElement("td");
     const checkbox = document.createElement("input");
@@ -323,15 +280,11 @@ function renderTable(totalRows = null) {
     const visibleRows = Math.max(0, totalRows - currentConfig.startRowIndex);
     text += ` / всего строк (лист): ${totalRows} (обрабатываемых с ${currentConfig.startRowIndex + 1}: ${visibleRows})`;
   }
-  document.getElementById("count").textContent = text;
+  const countEl = document.getElementById("count");
+  if (countEl) countEl.textContent = text;
 }
 
-// ---------- Текст в речь ----------
-const synth = window.speechSynthesis;
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition;
-let isListening = false;
-
+// ====== Speech & control ======
 function startReading() {
   if (!items.length) return;
   currentIndex = 0;
@@ -352,7 +305,6 @@ function speakCurrent() {
   if (prefix && ["KR", "КР", "KU", "КУ", "KLT"].includes(String(prefix).toUpperCase())) {
     articleText = formatArticle(prefix, main, extra);
   } else {
-    // прочитать соединённый текст артикула (range) — если есть
     const cfg = currentConfig;
     if (cfg) {
       const row = it.row || [];
@@ -371,35 +323,35 @@ function speakCurrent() {
 }
 
 function speak(text) {
+  if (!synth) return;
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = 'ru-RU';
   synth.cancel();
   synth.speak(utterance);
 }
 
-// ---------- Числа в слова (исправлено) ----------
+// ====== number -> words ======
 function numberToWordsRuNom(num) {
   num = parseInt(num);
   if (isNaN(num)) return String(num);
 
-  const ones = ["ноль", "один", "два", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять"];
-  const teens = ["десять", "одиннадцать", "двенадцать", "тринадцать", "четырнадцать", "пятнадцать", "шестнадцать", "семнадцать", "восемнадцать", "девятнадцать"];
-  const tens = ["", "", "двадцать", "тридцать", "сорок", "пятьдесят", "шестьдесят", "семьдесят", "восемьдесят", "девяносто"];
-  const hundreds = ["", "сто", "двести", "триста", "четыреста", "пятьсот", "шестьсот", "семьсот", "восемьсот", "девятьсот"];
+  const ones = ["ноль","один","два","три","четыре","пять","шесть","семь","восемь","девять"];
+  const teens = ["десять","одиннадцать","двенадцать","тринадцать","четырнадцать","пятнадцать","шестнадцать","семнадцать","восемнадцать","девятнадцать"];
+  const tens = ["","","двадцать","тридцать","сорок","пятьдесят","шестьдесят","семьдесят","восемьдесят","девяносто"];
+  const hundreds = ["","сто","двести","триста","четыреста","пятьсот","шестьсот","семьсот","восемьсот","девятьсот"];
 
   if (num < 10) return ones[num];
-  if (num < 20) return teens[num - 10];
+  if (num < 20) return teens[num-10];
   if (num < 100) {
-    const t = Math.floor(num / 10);
-    const o = num % 10;
+    const t = Math.floor(num/10);
+    const o = num%10;
     return tens[t] + (o ? " " + ones[o] : "");
   }
   if (num < 1000) {
-    const h = Math.floor(num / 100);
+    const h = Math.floor(num/100);
     const rem = num % 100;
     return hundreds[h] + (rem ? " " + numberToWordsRuNom(rem) : "");
   }
-
   return num.toString();
 }
 
@@ -407,28 +359,27 @@ function numberToWordsRu(num) {
   num = parseInt(num);
   if (isNaN(num)) return String(num);
 
-  const ones = ["ноль", "одну", "две", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять"];
-  const teens = ["десять", "одиннадцать", "двенадцать", "тринадцать", "четырнадцать", "пятнадцать", "шестнадцать", "семнадцать", "восемнадцать", "девятнадцать"];
-  const tens = ["", "", "двадцать", "тридцать", "сорок", "пятьдесят", "шестьдесят", "семьдесят", "восемьдесят", "девяносто"];
-  const hundreds = ["", "сто", "двести", "триста", "четыреста", "пятьсот", "шестьсот", "семьсот", "восемьсот", "девятьсот"];
+  const ones = ["ноль","одну","две","три","четыре","пять","шесть","семь","восемь","девять"];
+  const teens = ["десять","одиннадцать","двенадцать","тринадцать","четырнадцать","пятнадцать","шестнадцать","семнадцать","восемнадцать","девятнадцать"];
+  const tens = ["","","двадцать","тридцать","сорок","пятьдесят","шестьдесят","семьдесят","восемьдесят","девяносто"];
+  const hundreds = ["","сто","двести","триста","четыреста","пятьсот","шестьсот","семьсот","восемьсот","девятьсот"];
 
   if (num < 10) return ones[num];
-  if (num < 20) return teens[num - 10];
+  if (num < 20) return teens[num-10];
   if (num < 100) {
-    const t = Math.floor(num / 10);
-    const o = num % 10;
+    const t = Math.floor(num/10);
+    const o = num%10;
     return tens[t] + (o ? " " + ones[o] : "");
   }
   if (num < 1000) {
-    const h = Math.floor(num / 100);
+    const h = Math.floor(num/100);
     const rem = num % 100;
     return hundreds[h] + (rem ? " " + numberToWordsRuNom(rem) : "");
   }
-
   return num.toString();
 }
 
-// ---------- Форматирование артикула для чтения ----------
+// ====== format article ======
 function formatArticle(prefix, main, extra) {
   const upperPrefix = String(prefix || '').toUpperCase();
   const isKR = upperPrefix.includes("KR") || upperPrefix.includes("КР");
@@ -444,47 +395,39 @@ function formatArticle(prefix, main, extra) {
     const ruPrefix = "Кудо";
     const raw = String(main || '');
     let parts = [];
-
-    if (raw.length === 4) {
-      parts = [raw.slice(0, 2), raw.slice(2)];
-    } else if (raw.length === 5) {
-      parts = [raw.slice(0, 2), raw.slice(2)];
-    } else if (raw.length === 6) {
-      parts = [raw.slice(0, 2), raw.slice(2, 4), raw.slice(4)];
-    } else {
-      parts = [raw];
-    }
+    if (raw.length === 4) parts = [raw.slice(0,2), raw.slice(2)];
+    else if (raw.length === 5) parts = [raw.slice(0,2), raw.slice(2)];
+    else if (raw.length === 6) parts = [raw.slice(0,2), raw.slice(2,4), raw.slice(4)];
+    else parts = [raw];
 
     const spoken = parts.map(p => {
-      if (p.length === 2 && p.startsWith("0")) {
-        return "ноль " + numberToWordsRuNom(p[1]);
-      } else {
-        return numberToWordsRuNom(parseInt(p));
-      }
+      if (p.length === 2 && p.startsWith("0")) return "ноль " + numberToWordsRuNom(p[1]);
+      else return numberToWordsRuNom(parseInt(p));
     }).join(" ");
 
-    if (isKLT) {
-      return `КэЭлТэ ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
-    }
+    if (isKLT) return `КэЭлТэ ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
 
     return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
   }
 
-  // fallback: просто соединяем
   return `${prefix}${main ? '-' + main : ''}${extra ? '-' + extra : ''}`.replace(/^-/, '');
 }
 
-// ---------- Суффикс для количества ----------
+// ====== qty suffix ======
 function getQtySuffix(num) {
   const rem10 = num % 10;
   const rem100 = num % 100;
   if (rem10 === 1 && rem100 !== 11) return "штуку";
-  if ([2, 3, 4].includes(rem10) && ![12, 13, 14].includes(rem100)) return "штуки";
+  if ([2,3,4].includes(rem10) && ![12,13,14].includes(rem100)) return "штуки";
   return "штук";
 }
 
-// ---------- Голосовое распознавание ----------
+// ====== speech recognition ======
 function startListening() {
+  if (!SpeechRecognition) {
+    console.warn('SpeechRecognition не поддерживается в этом браузере');
+    return;
+  }
   if (isListening) return;
 
   recognition = new SpeechRecognition();
@@ -525,13 +468,11 @@ function startListening() {
 
 function stopListening() {
   if (!isListening || !recognition) return;
-  try {
-    recognition.stop();
-  } catch (e) {}
+  try { recognition.stop(); } catch (e) {}
   isListening = false;
 }
 
-// ---------- Навигация по позициям ----------
+// ====== navigation & voice commands ======
 function speakNextUnprocessed() {
   let next = currentIndex + 1;
   while (next < items.length && items[next].checked) next++;
@@ -545,27 +486,24 @@ function speakNextUnprocessed() {
 
 function handleVoiceCommand(cmd) {
   if (!cmd) return;
-  // упрощённая нормализация коротких команд
-  if (["готово", "положил", "ок"].some(k => cmd === k || cmd.includes(k))) {
+  if (["готово","положил","ок"].some(k => cmd === k || cmd.includes(k))) {
     items[currentIndex].checked = true;
     speakNextUnprocessed();
-  } else if (["дальше", "пропускаем", "некст", "следующий"].some(k => cmd === k || cmd.includes(k))) {
+  } else if (["дальше","пропускаем","некст","следующий"].some(k => cmd === k || cmd.includes(k))) {
     speakNextUnprocessed();
   } else if (cmd.includes("назад")) {
     currentIndex = Math.max(0, currentIndex - 1);
     speakCurrent();
-  } else if (["повтори", "щё раз", "ещё раз", "повторить"].some(k => cmd.includes(k))) {
+  } else if (["повтори","щё раз","ещё раз","повторить"].some(k => cmd.includes(k))) {
     speakCurrent();
   } else if (cmd.includes("начни") && cmd.includes("пропущ")) {
     startFromSkipped();
   } else {
     console.log("Команда не распознана как управление:", cmd);
   }
-
   renderTable(totalRowsInSheet);
 }
 
-// ---------- Начать с пропущенных ----------
 function startFromSkipped() {
   let next = items.findIndex(item => !item.checked);
   if (next !== -1) {
