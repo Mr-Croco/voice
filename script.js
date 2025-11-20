@@ -131,10 +131,6 @@ function getConfigForType(type) {
   }
 }
 
-// ====== Strict article token regex (without RT/РТ) ======
-// Критично: РТ/RT мы НЕ считаем артикулом по договорённости.
-const strictArticleTokenRegex = /^(KR\d{4}|КР\d{4}|KU\d{4,6}|КУ\d{4,6}|KLT\d{5}|klt\d{5})$/i;
-
 // ====== Parse sheet with config ======
 function parseWithConfig(json, cfg) {
   const out = [];
@@ -168,42 +164,11 @@ function parseWithConfig(json, cfg) {
                     || extractArticleFromAnyCell(row)
                     || { article: fullArticleText, prefix: null, main: null, extra: null };
 
-    // Если извлечённый артикул присутствует, но мы получили PT special (article full range) — уже handled.
-    // В остальных случаях, если extracted.article выглядит как короткий токен (например "KR-1234"), оставляем.
-    // Но если extracted.article is just a token that matches strictArticleTokenRegex -> ok.
-    // В противном случае (например: РТ0011 или 'RT-0011') — нужно вернуть fullArticleText.
-    let finalArticle = extracted.article;
-    let finalPrefix = extracted.prefix;
-    let finalMain = extracted.main;
-    let finalExtra = extracted.extra;
-
-    // Нормализуем и решаем, считать ли это "артикулом" или вернуть полный текст
-    if (finalArticle) {
-      const tokenCandidate = String(finalArticle).split(/[\s,;]+/)[0].replace(/[-.]/g, '');
-      if (!strictArticleTokenRegex.test(tokenCandidate)) {
-        // не является строгим артикулом (в т.ч. RT/РТ) — возвращаем полную строку
-        finalArticle = fullArticleText;
-        finalPrefix = null;
-        finalMain = null;
-        finalExtra = null;
-      } else {
-        // строгий артикул — нормализуем вид: PREFIX-MAIN
-        const m = tokenCandidate.match(/^([A-Za-zА-Яа-я]+)(\d+)$/);
-        if (m) {
-          finalPrefix = m[1];
-          finalMain = m[2];
-          finalArticle = `${finalPrefix}-${finalMain}`;
-        }
-      }
-    } else {
-      finalArticle = fullArticleText;
-    }
-
     out.push({
-      article: finalArticle,
-      prefix: finalPrefix,
-      main: finalMain,
-      extra: finalExtra,
+      article: extracted.article,
+      prefix: extracted.prefix,
+      main: extracted.main,
+      extra: extracted.extra,
       qty,
       row,
       checked: false,
@@ -231,76 +196,41 @@ function collectRangeText(row, startCol, endCol) {
 }
 
 // ====== Extract article by patterns ======
-// теперь: ищем токены в ячейке, но считаем артикулом только если токен строгого формата (без RT)
 function extractArticleFromTextRange(row, startCol, endCol) {
+  const pattern = /(KR|KU|КР|КУ|KLT|PT|РТ)[-.\s–—]?([\w\d.-]+)/i;
   for (let c = startCol; c <= endCol; c++) {
     let cell = row[c];
     if (cell === undefined || cell === null) continue;
     if (typeof cell !== 'string') cell = String(cell);
-    cell = fixWin1251Mojibake(cell).trim();
-    if (!cell) continue;
-
-    // разбиваем на токены по пробелам/запятым/символам
-    const tokens = cell.split(/\s+|,|;/).map(t => t.trim()).filter(Boolean);
-
-    for (const tokRaw of tokens) {
-      const tok = tokRaw.replace(/^[^\wА-Яа-я0-9]+|[^\wА-Яа-я0-9]+$/g, ''); // убираем крайние знаки
-      const tokNorm = tok.replace(/[-.]/g, ''); // убираем дефисы/точки для теста
-
-      // PT(лат) —special: если токен начинается с PT (латинская) — считаем, что нужно вернуть всю строку
-      if (/^PT$/i.test(tokNorm)) {
+    cell = fixWin1251Mojibake(cell);
+    const match = cell.match(pattern);
+    if (match) {
+      const prefix = match[1];
+      const main = match[2] || null;
+      if (prefix.toUpperCase() === 'PT') {
         return { article: collectRangeText(row, startCol, endCol), prefix: 'PT', main: null, extra: null };
       }
-
-      // РТ/RT: по договорённости НЕ считать артикулом → пропускаем эту ветку намеренно
-
-      // Проверяем строгий артикулный токен (KR, KU, KLT и их кириллические варианты)
-      if (strictArticleTokenRegex.test(tokNorm)) {
-        // разделим на префикс и цифры
-        const m = tokNorm.match(/^([A-Za-zА-Яа-я]+)(\d+)$/i);
-        if (m) {
-          const prefix = m[1];
-          const main = m[2];
-          return { article: `${prefix}-${main}`, prefix, main, extra: null };
-        } else {
-          // на всякий случай вернём токен
-          return { article: tokNorm, prefix: null, main: null, extra: null };
-        }
-      }
-
-      // иначе — не артикул, продолжаем
+      return { article: `${prefix}-${main}`, prefix, main, extra: null };
     }
   }
   return null;
 }
 
 function extractArticleFromAnyCell(row) {
+  const pattern = /(KR|KU|КР|КУ|KLT|PT|РТ)[-.\s–—]?([\w\d.-]+)/i;
   for (let cell of row) {
     if (cell === undefined || cell === null) continue;
     if (typeof cell !== 'string') cell = String(cell);
-    cell = fixWin1251Mojibake(cell).trim();
-    if (!cell) continue;
-
-    const tokens = cell.split(/\s+|,|;/).map(t => t.trim()).filter(Boolean);
-    for (const tokRaw of tokens) {
-      const tok = tokRaw.replace(/^[^\wА-Яа-я0-9]+|[^\wА-Яа-я0-9]+$/g, '');
-      const tokNorm = tok.replace(/[-.]/g, '');
-
-      if (/^PT$/i.test(tokNorm)) {
+    cell = fixWin1251Mojibake(cell);
+    const match = cell.match(pattern);
+    if (match) {
+      const prefix = match[1];
+      const main = match[2] || null;
+      if (prefix.toUpperCase() === 'PT') {
         const joined = row.map(c => (c === undefined || c === null) ? '' : fixWin1251Mojibake(String(c))).filter(Boolean).join(', ');
         return { article: joined, prefix: 'PT', main: null, extra: null };
       }
-
-      if (strictArticleTokenRegex.test(tokNorm)) {
-        const m = tokNorm.match(/^([A-Za-zА-Яа-я]+)(\d+)$/i);
-        if (m) {
-          const prefix = m[1];
-          const main = m[2];
-          return { article: `${prefix}-${main}`, prefix, main, extra: null };
-        } else {
-          return { article: tokNorm, prefix: null, main: null, extra: null };
-        }
-      }
+      return { article: `${prefix}-${main}`, prefix, main, extra: null };
     }
   }
   return null;
