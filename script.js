@@ -1,3 +1,4 @@
+```javascript
 // script.js — универсальный "солдат" для чтения разных 1С-документов
 let items = [];
 let currentIndex = 0;
@@ -20,6 +21,34 @@ function setDocTypeLabel(text) {
   el.textContent = text ? `Тип распознанного документа: ${text}` : '';
 }
 
+// =======================
+// Mojibake fixer + utils
+// =======================
+function fixWin1251Mojibake(str) {
+  if (!str || typeof str !== 'string') return str;
+  // Быстрая эвристика: в mojibake часто встречаются символы Ã, Ð, Â и т.п.
+  if (!/[ÃÐÂÕÕ]/.test(str) && !/[ÃÐ]/.test(str)) {
+    // дополнитель упрощённая проверка: если нет характерных символов — не трогаем
+    if (!/[ÃÐ]/.test(str)) return str;
+  }
+  try {
+    // decodeURIComponent(escape(...)) часто восстанавливает корректную строку, если это результат ошибочной интерпретации CP1251 как UTF-8
+    return decodeURIComponent(escape(str));
+  } catch (e) {
+    return str;
+  }
+}
+
+function arrayBufferToBinaryString(buf) {
+  const bytes = new Uint8Array(buf);
+  const chunkSize = 0x8000;
+  let result = '';
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    result += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+  }
+  return result;
+}
+
 // ---------- handleFile: загрузка и детект типа ----------
 function handleFile(e) {
   const file = e.target.files[0];
@@ -27,8 +56,23 @@ function handleFile(e) {
   const reader = new FileReader();
 
   reader.onload = function (ev) {
-    const data = new Uint8Array(ev.target.result);
-    const workbook = XLSX.read(data, { type: 'array' });
+    // преобразуем ArrayBuffer в binary string для SheetJS с указанием codepage
+    let binary;
+    if (ev.target.result instanceof ArrayBuffer) {
+      binary = arrayBufferToBinaryString(ev.target.result);
+    } else {
+      binary = ev.target.result;
+    }
+
+    // Попробуем указать codepage:1251 — если сборка xlsx поддерживает cptable, это поможет с xls
+    let workbook;
+    try {
+      workbook = XLSX.read(binary, { type: 'binary', codepage: 1251, raw: false });
+    } catch (err) {
+      // fallback: без codepage
+      workbook = XLSX.read(binary, { type: 'binary', raw: false });
+    }
+
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const json = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
 
@@ -45,6 +89,7 @@ function handleFile(e) {
     setDocTypeLabel(currentConfig ? currentConfig.label : 'Не определён');
   };
 
+  // читаем как ArrayBuffer (stabler for all browsers), затем конвертим
   reader.readAsArrayBuffer(file);
 }
 
@@ -53,17 +98,18 @@ function detectDocType(json) {
   // Просматриваем первые 30 строк (или до конца) и ищем сигнатуры
   const upto = Math.min(30, json.length);
   for (let i = 0; i < upto; i++) {
-    const row = (json[i] || []).join(' ').toString().toLowerCase();
+    const rowArr = (json[i] || []).map(cell => typeof cell === 'string' ? fixWin1251Mojibake(cell) : cell);
+    const row = rowArr.join(' ').toString().toLowerCase();
     if (!row) continue;
 
     if (row.includes('расходная накладная') || row.includes('расходная')) return 'rashod';
     if (row.includes('счет-фактура') || row.includes('счёт-фактура')) return 'ufd';
-    if (row.includes('счёт') || row.includes('счет') || row.includes('счет №')) {
+    if (row.includes('универсальный передаточный документ') || row.includes('упд')) return 'ufd';
+    if (row.includes('перемещение')) return 'perem';
+    if (row.includes('счет') || row.includes('счёт') || row.includes('счет №')) {
       // Чтобы не спутать с 'расходная' — проверка выше пройдёт раньше
       return 'schet';
     }
-    if (row.includes('перемещение')) return 'perem';
-    if (row.includes('универсальный передаточный документ') || row.includes('упд')) return 'ufd';
   }
 
   // fallback — если ничего не найдено, считаем расходной (как прежняя логика)
@@ -130,11 +176,13 @@ function parseWithConfig(json, cfg) {
   for (let i = cfg.startRowIndex; i < json.length; i++) {
     const row = json[i] || [];
 
-    // собираем текст для артикула из диапазона articleCols
+    // собираем текст для артикула из диапазона articleCols (и фиксируем возможные крякозябры)
     const articleRangeText = collectRangeText(row, cfg.articleCols[0], cfg.articleCols[1]);
 
     // также попытаемся взять "основной" артикул из знакомой F (index 5) — если там что-то есть
-    const primaryCell = row[5] || '';
+    const primaryCellRaw = row[5] || '';
+    const primaryCell = typeof primaryCellRaw === 'string' ? fixWin1251Mojibake(primaryCellRaw) : primaryCellRaw;
+
     const candidateText = (articleRangeText || '') + ' ' + (primaryCell || '');
     const fullArticleText = (candidateText || '').toString().trim();
 
@@ -142,7 +190,9 @@ function parseWithConfig(json, cfg) {
     let qty = 0;
     if (cfg.qtyCols && cfg.qtyCols.length === 2) {
       for (let c = cfg.qtyCols[0]; c <= cfg.qtyCols[1]; c++) {
-        const val = parseFloat((row[c] !== undefined && row[c] !== null) ? String(row[c]).replace(',', '.') : '') || 0;
+        const raw = row[c];
+        const rawStr = (raw !== undefined && raw !== null) ? String(raw).replace(',', '.') : '';
+        const val = parseFloat(rawStr) || 0;
         qty = Math.max(qty, Math.floor(val));
       }
     }
@@ -177,7 +227,11 @@ function collectRangeText(row, startCol, endCol) {
   const parts = [];
   for (let c = startCol; c <= endCol; c++) {
     const v = row[c];
-    if (v !== undefined && v !== null && String(v).trim() !== '') parts.push(String(v).trim());
+    if (v !== undefined && v !== null && String(v).trim() !== '') {
+      let s = String(v).trim();
+      s = fixWin1251Mojibake(s);
+      parts.push(s);
+    }
   }
   return parts.join(' ').replace(/\s+/g, ' ').trim();
 }
@@ -186,8 +240,10 @@ function collectRangeText(row, startCol, endCol) {
 function extractArticleFromTextRange(row, startCol, endCol) {
   const pattern = /(KR|KU|КР|КУ|KLT|PT|РТ)[-.\s–—]?([\w\d.-]+)/i;
   for (let c = startCol; c <= endCol; c++) {
-    const cell = row[c];
-    if (!cell || typeof cell !== 'string') continue;
+    let cell = row[c];
+    if (!cell) continue;
+    if (typeof cell !== 'string') cell = String(cell);
+    cell = fixWin1251Mojibake(cell);
     const match = cell.match(pattern);
     if (match) {
       const prefix = match[1];
@@ -206,13 +262,17 @@ function extractArticleFromTextRange(row, startCol, endCol) {
 function extractArticleFromAnyCell(row) {
   const pattern = /(KR|KU|КР|КУ|KLT|PT|РТ)[-.\s–—]?([\w\d.-]+)/i;
   for (let cell of row) {
-    if (!cell || typeof cell !== 'string') continue;
+    if (cell === undefined || cell === null) continue;
+    if (typeof cell !== 'string') cell = String(cell);
+    cell = fixWin1251Mojibake(cell);
     const match = cell.match(pattern);
     if (match) {
       const prefix = match[1];
       const main = match[2] || null;
       if (prefix.toUpperCase() === 'PT') {
-        return { article: row.filter(Boolean).join(', '), prefix: 'PT', main: null, extra: null };
+        // возвращаем строку, собранную из всех непустых ячеек (фикснутые)
+        const joined = row.map(c => (c === undefined || c === null) ? '' : fixWin1251Mojibake(String(c))).filter(Boolean).join(', ');
+        return { article: joined, prefix: 'PT', main: null, extra: null };
       }
       return { article: `${prefix}-${main}`, prefix, main, extra: null };
     }
