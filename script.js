@@ -379,48 +379,6 @@ function numberToWordsRu(num) {
   return num.toString();
 }
 
-// ====== pronounce alphanumeric helper ======
-function pronounceAlphanumeric(str) {
-  if (!str) return '';
-
-  // map digits and Latin letters to spoken Russian-ish forms
-  const digitMap = {
-    '0':'ноль','1':'один','2':'два','3':'три','4':'четыре','5':'пять','6':'шесть','7':'семь','8':'восемь','9':'девять'
-  };
-  const letterMap = {
-    a:'эй', b:'би', c:'си', d:'ди', e:'и', f:'эф', g:'джи', h:'эйч', i:'ай', j:'джей', k:'кей', l:'эл', m:'эм',
-    n:'эн', o:'о', p:'пи', q:'кью', r:'эр', s:'эс', t:'ти', u:'ю', v:'ви', w:'дабл-ю', x:'икс', y:'уай', z:'зед'
-  };
-
-  // If string is pure digits and doesn't start with '0', consider reading it as a whole number
-  if (/^\d+$/.test(str) && !str.startsWith('0')) {
-    // use numberToWordsRuNom for whole numbers
-    return numberToWordsRuNom(parseInt(str));
-  }
-
-  // otherwise, read symbol by symbol, but group contiguous digits optionally to avoid too long sequences
-  const parts = [];
-  for (let i = 0; i < str.length; i++) {
-    const ch = str[i];
-    if (/\d/.test(ch)) {
-      // digit
-      parts.push(digitMap[ch]);
-    } else if (/[A-Za-z]/.test(ch)) {
-      const low = ch.toLowerCase();
-      parts.push(letterMap[low] || low);
-    } else if (ch === '-' || ch === '–' || ch === '—' || ch === '.') {
-      // skip or say "тире" if you want
-      // parts.push('тире');
-      continue;
-    } else {
-      // any other char — just push it
-      parts.push(ch);
-    }
-  }
-
-  return parts.join(' ').replace(/\s+/g, ' ').trim();
-}
-
 // ====== format article ======
 function formatArticle(prefix, main, extra) {
   const upperPrefix = String(prefix || '').toUpperCase();
@@ -430,58 +388,26 @@ function formatArticle(prefix, main, extra) {
 
   if (isKR) {
     const ruPrefix = "КаЭр";
-    // если main содержит буквы — просто прочитать как алфавит/цифры
-    if (main && /[A-Za-z]/i.test(String(main))) {
-      const pronounced = pronounceAlphanumeric(String(main));
-      return `${ruPrefix} ${pronounced}${extra ? ' дробь ' + pronounceAlphanumeric(String(extra)) : ''}`;
-    }
     return `${ruPrefix} ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
   }
 
   if (isKU) {
     const ruPrefix = "Кудо";
-
-    // If no main — fallback to prefix only
-    if (!main) {
-      return ruPrefix;
-    }
-
     const raw = String(main || '');
+    let parts = [];
+    if (raw.length === 4) parts = [raw.slice(0,2), raw.slice(2)];
+    else if (raw.length === 5) parts = [raw.slice(0,2), raw.slice(2)];
+    else if (raw.length === 6) parts = [raw.slice(0,2), raw.slice(2,4), raw.slice(4)];
+    else parts = [raw];
 
-    // Pronounce the main part intelligently:
-    // - If it contains letters or starts with 0 -> pronounce symbol-by-symbol (digits as words, letters as names)
-    // - Else (pure number without leading zero) -> pronounce as whole number
-    let pronouncedMain;
-    if (/[A-Za-z]/.test(raw) || raw.startsWith('0')) {
-      pronouncedMain = pronounceAlphanumeric(raw);
-    } else if (/^\d+$/.test(raw)) {
-      pronouncedMain = numberToWordsRuNom(parseInt(raw));
-    } else {
-      // mixed other symbols — fall back to symbol-by-symbol
-      pronouncedMain = pronounceAlphanumeric(raw);
-    }
+    const spoken = parts.map(p => {
+      if (p.length === 2 && p.startsWith("0")) return "ноль " + numberToWordsRuNom(p[1]);
+      else return numberToWordsRuNom(parseInt(p));
+    }).join(" ");
 
-    // Extra: if extra exists and is alphanumeric — pronounce similarly
-    let pronouncedExtra = '';
-    if (extra) {
-      pronouncedExtra = pronounceAlphanumeric(String(extra));
-    }
+    if (isKLT) return `КэЭлТэ ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
 
-    // For display we must not lose the original article. But this function returns text for speech.
-    return `${ruPrefix} ${pronouncedMain}${pronouncedExtra ? ' ' + pronouncedExtra : ''}`;
-  }
-
-  if (isKLT) {
-    const ruPrefix = "КэЭлТэ";
-    if (main && /[A-Za-z]/i.test(String(main))) {
-      return `${ruPrefix} ${pronounceAlphanumeric(String(main))}${extra ? ' дробь ' + pronounceAlphanumeric(String(extra)) : ''}`;
-    }
-    return `${ruPrefix} ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
-  }
-
-  // default fallback: if main contains letters — read symbol-by-symbol; else try numeric reading
-  if (main && /[A-Za-z]/.test(String(main))) {
-    return `${prefix} ${pronounceAlphanumeric(String(main))}${extra ? ' ' + pronounceAlphanumeric(String(extra)) : ''}`;
+    return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
   }
 
   return `${prefix}${main ? '-' + main : ''}${extra ? '-' + extra : ''}`.replace(/^-/, '');
