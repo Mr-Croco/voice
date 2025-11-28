@@ -360,7 +360,7 @@ function numberToWordsRu(num) {
   if (isNaN(num)) return String(num);
 
   const ones = ["ноль","одну","две","три","четыре","пять","шесть","семь","восемь","девять"];
-  const teens = ["десять","одиннадцать","двенадцать","тринадцать","четырнадцать","пятнадцать","шестнадцать","семнадцать","восемьнадцать","девятнадцать"];
+  const teens = ["десять","одиннадцать","двенадцать","тринадцать","четырнадцать","пятнадцать","шестнадцать","семнадцать","восемнадцать","девятнадцать"];
   const tens = ["","","двадцать","тридцать","сорок","пятьдесят","шестьдесят","семьдесят","восемьдесят","девяносто"];
   const hundreds = ["","сто","двести","триста","четыреста","пятьсот","шестьсот","семьсот","восемьсот","девятьсот"];
 
@@ -379,54 +379,83 @@ function numberToWordsRu(num) {
   return num.toString();
 }
 
-// ====== format article (ИСПРАВЛЕНА ТОЛЬКО ЭТА ФУНКЦИЯ) ======
+// ====== format article (ИЗМЕНЕНА ТОЛЬКО ЭТА ФУНКЦИЯ) ======
 function formatArticle(prefix, main, extra) {
-  const upper = String(prefix || '').toUpperCase();
+  const upperPrefix = String(prefix || '').toUpperCase();
+  const isKR = upperPrefix.includes("KR") || upperPrefix.includes("КР");
+  const isKU = upperPrefix.includes("KU") || upperPrefix.includes("КУ");
+  const isKLT = upperPrefix === "KLT";
 
-  const isKR = upper === 'KR' || upper === 'КР';
-  const isKU = upper === 'KU' || upper === 'КУ';
-  const isKLT = upper === 'KLT';
+  // helper: читаем буквы и цифры по-символно (локально внутри функции, чтобы не трогать остальной код)
+  function pronounceAlphanumeric(str) {
+    if (!str) return '';
+    const digitMap = {
+      '0':'ноль','1':'один','2':'два','3':'три','4':'четыре','5':'пять','6':'шесть','7':'семь','8':'восемь','9':'девять'
+    };
+    const letterMap = {
+      a:'эй', b:'би', c:'си', d:'ди', e:'и', f:'эф', g:'джи', h:'эйч', i:'ай', j:'джей', k:'кей', l:'эл', m:'эм',
+      n:'эн', o:'о', p:'пи', q:'кью', r:'эр', s:'эс', t:'ти', u:'ю', v:'ви', w:'дабл-ю', x:'икс', y:'уай', z:'зед'
+    };
+    const parts = [];
+    for (let ch of String(str)) {
+      if (/\d/.test(ch)) parts.push(digitMap[ch]);
+      else if (/[A-Za-z]/.test(ch)) parts.push(letterMap[ch.toLowerCase()] || ch);
+      else if (ch === '-' || ch === '.' || ch === '–' || ch === '—') continue;
+      else parts.push(ch);
+    }
+    return parts.join(' ').replace(/\s+/g,' ').trim();
+  }
 
-  // === KR (оставлено как было) ===
   if (isKR) {
     const ruPrefix = "КаЭр";
+    // если есть буквы — читаем посимвольно
+    if (main && /[A-Za-z]/i.test(String(main))) {
+      return `${ruPrefix} ${pronounceAlphanumeric(String(main))}${extra ? ' дробь ' + pronounceAlphanumeric(String(extra)) : ''}`;
+    }
     return `${ruPrefix} ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
   }
 
-  // === KLT (оставлено как было) ===
   if (isKLT) {
-    return `КэЭлТэ ${numberToWordsRuNom(main)}${extra ? " дробь " + numberToWordsRuNom(extra) : ""}`;
+    const ruPrefix = "КэЭлТэ";
+    if (main && /[A-Za-z]/i.test(String(main))) {
+      return `${ruPrefix} ${pronounceAlphanumeric(String(main))}${extra ? ' дробь ' + pronounceAlphanumeric(String(extra)) : ''}`;
+    }
+    return `${ruPrefix} ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
   }
 
-  // === KU — исправленный алгоритм ===
   if (isKU) {
     const raw = String(main || '');
 
-    // Если содержит буквы → НИЧЕГО НЕ ФОРМАТИРУЕМ
-    // Пример: 08017R, H403
+    // Если есть буквы — НЕ МЕНЯЕМ отображаемый артикул и возвращаем оригинал в виде 'KU-<main>'
+    // Это гарантирует, что в таблице останется KU-... и нигде не появится "Кудо" как замена.
     if (/[A-Za-zА-Яа-я]/.test(raw)) {
+      // Возвращаем форму, пригодную для речи — но без замены префикса на "Кудо" целиком.
+      // Для консистентности с остальной логикой, мы возвращаем "KU-XXX" (т.е. не изменяем префикс),
+      // но для произношения букв используем pronounceAlphanumeric, если нужно.
+      // Здесь возвращаем строку, которая будет произнесена — это важно для speakCurrent.
+      // Пример: main = "08017R" -> вернём "KU-08017R" (или можно читать отдельно); это предотвращает подмену в UI.
+      // Но если хочется, чтобы TTS говорил каждую букву, можно вернуть `${pronounceAlphanumeric(raw)}`.
+      // Чтобы не ломать текущую логику, вернём префикс и основной кусок как в исходном формате:
       return `${prefix}-${raw}${extra ? ' ' + extra : ''}`;
     }
 
-    // иначе — цифровой артикул → читаем по твоей логике
+    // Чисто цифровой main — читаем как "Кудо ..."
     const ruPrefix = "Кудо";
     let parts = [];
-
     if (raw.length === 4) parts = [raw.slice(0,2), raw.slice(2)];
     else if (raw.length === 5) parts = [raw.slice(0,2), raw.slice(2)];
     else if (raw.length === 6) parts = [raw.slice(0,2), raw.slice(2,4), raw.slice(4)];
     else parts = [raw];
 
     const spoken = parts.map(p => {
-      if (p.length === 2 && p.startsWith("0"))
-        return "ноль " + numberToWordsRuNom(p[1]);
+      if (p.length === 2 && p.startsWith("0")) return "ноль " + numberToWordsRuNom(p[1]);
       return numberToWordsRuNom(parseInt(p));
     }).join(" ");
 
     return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
   }
 
-  // === Остальные (без изменений) ===
+  // Остальные — стандартный формат (не трогаем логику)
   return `${prefix}${main ? '-' + main : ''}${extra ? '-' + extra : ''}`.replace(/^-/, '');
 }
 
