@@ -300,19 +300,11 @@ function speakCurrent() {
 
   const it = items[currentIndex];
   const { prefix, main, extra, qty } = it;
-  let articleText;
+  let articleText = it.article; // по умолчанию берем оригинальный артикул
 
   if (prefix && ["KR", "КР", "KU", "КУ", "KLT"].includes(String(prefix).toUpperCase())) {
+    // ВАЖНО: здесь articleText для речи = результат formatArticle
     articleText = formatArticle(prefix, main, extra);
-  } else {
-    const cfg = currentConfig;
-    if (cfg) {
-      const row = it.row || [];
-      const textRange = collectRangeText(row, cfg.articleCols[0], cfg.articleCols[1]);
-      articleText = textRange || it.article;
-    } else {
-      articleText = it.article;
-    }
   }
 
   const qtyText = numberToWordsRu(qty);
