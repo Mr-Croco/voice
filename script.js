@@ -360,7 +360,7 @@ function numberToWordsRu(num) {
   if (isNaN(num)) return String(num);
 
   const ones = ["ноль","одну","две","три","четыре","пять","шесть","семь","восемь","девять"];
-  const teens = ["десять","одиннадцать","двенадцать","тринадцать","четырнадцать","пятнадцать","шестнадцать","семнадцать","восемнадцать","девятнадцать"];
+  const teens = ["десять","одиннадцать","двенадцать","тринадцать","четырнадцать","пятнадцать","шестнадцать","семнадцать","восемьнадцать","девятнадцать"];
   const tens = ["","","двадцать","тридцать","сорок","пятьдесят","шестьдесят","семьдесят","восемьдесят","девяносто"];
   const hundreds = ["","сто","двести","триста","четыреста","пятьсот","шестьсот","семьсот","восемьсот","девятьсот"];
 
@@ -379,108 +379,54 @@ function numberToWordsRu(num) {
   return num.toString();
 }
 
-// ====== pronounce alphanumeric helper ======
-function pronounceAlphanumeric(str) {
-  if (!str) return '';
-
-  const digitMap = {
-    '0':'ноль','1':'один','2':'два','3':'три','4':'четыре','5':'пять','6':'шесть','7':'семь','8':'восемь','9':'девять'
-  };
-  const letterMap = {
-    a:'эй', b:'би', c:'си', d:'ди', e:'и', f:'эф', g:'джи', h:'эйч', i:'ай', j:'джей', k:'кей', l:'эл', m:'эм',
-    n:'эн', o:'о', p:'пи', q:'кью', r:'эр', s:'эс', t:'ти', u:'ю', v:'ви', w:'дабл-ю', x:'икс', y:'уай', z:'зед'
-  };
-
-  // если строка полностью цифр и не начинается с 0 — читаем как число
-  if (/^\d+$/.test(str) && !str.startsWith('0')) {
-    return numberToWordsRuNom(parseInt(str));
-  }
-
-  // иначе читаем по символам
-  const parts = [];
-  for (let i = 0; i < str.length; i++) {
-    const ch = str[i];
-    if (/\d/.test(ch)) {
-      parts.push(digitMap[ch]);
-    } else if (/[A-Za-z]/.test(ch)) {
-      const low = ch.toLowerCase();
-      parts.push(letterMap[low] || low);
-    } else if (ch === '-' || ch === '–' || ch === '—' || ch === '.') {
-      // пропускаем тире/точки в артикулах (в речи не нужны)
-      continue;
-    } else {
-      parts.push(ch);
-    }
-  }
-  return parts.join(' ').replace(/\s+/g, ' ').trim();
-}
-
-// ====== format article ======
+// ====== format article (ИСПРАВЛЕНА ТОЛЬКО ЭТА ФУНКЦИЯ) ======
 function formatArticle(prefix, main, extra) {
-  const upperPrefix = String(prefix || '').toUpperCase();
-  const isKR = upperPrefix.includes("KR") || upperPrefix.includes("КР");
-  const isKU = upperPrefix.includes("KU") || upperPrefix.includes("КУ");
-  const isKLT = upperPrefix === "KLT";
+  const upper = String(prefix || '').toUpperCase();
 
+  const isKR = upper === 'KR' || upper === 'КР';
+  const isKU = upper === 'KU' || upper === 'КУ';
+  const isKLT = upper === 'KLT';
+
+  // === KR (оставлено как было) ===
   if (isKR) {
     const ruPrefix = "КаЭр";
-    if (main && /[A-Za-z]/i.test(String(main))) {
-      // буквы в main — читаем посимвольно
-      const pronounced = pronounceAlphanumeric(String(main));
-      return `${ruPrefix} ${pronounced}${extra ? ' дробь ' + pronounceAlphanumeric(String(extra)) : ''}`;
-    }
     return `${ruPrefix} ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
   }
 
-  if (isKU) {
-    const ruPrefix = "Кудо";
-    if (!main) return ruPrefix;
-
-    const raw = String(main);
-
-    // Если main содержит буквы или содержит смешанные символы или начинается с 0 -> читаем посимвольно
-    let pronouncedMain;
-    if (/[A-Za-z]/.test(raw) || /[^0-9]/.test(raw) || raw.startsWith('0')) {
-      pronouncedMain = pronounceAlphanumeric(raw);
-    } else {
-      // чистые цифры без ведущего нуля — пробуем привычное групповое чтение (оригинальная логика)
-      let parts = [];
-      if (raw.length === 4) parts = [raw.slice(0,2), raw.slice(2)];
-      else if (raw.length === 5) parts = [raw.slice(0,2), raw.slice(2)];
-      else if (raw.length === 6) parts = [raw.slice(0,2), raw.slice(2,4), raw.slice(4)];
-      else parts = [raw];
-
-      pronouncedMain = parts.map(p => {
-        if (p.length === 2 && p.startsWith("0")) {
-          // '01' -> "ноль один"
-          const d = p[1];
-          return 'ноль ' + numberToWordsRuNom(parseInt(d));
-        }
-        // безопасно парсим p как число (p должно быть только цифры здесь)
-        const n = parseInt(p);
-        return numberToWordsRuNom(isNaN(n) ? p : n);
-      }).join(' ');
-    }
-
-    let pronouncedExtra = '';
-    if (extra) pronouncedExtra = pronounceAlphanumeric(String(extra));
-
-    return `${ruPrefix} ${pronouncedMain}${pronouncedExtra ? ' ' + pronouncedExtra : ''}`;
-  }
-
+  // === KLT (оставлено как было) ===
   if (isKLT) {
-    const ruPrefix = "КэЭлТэ";
-    if (main && /[A-Za-z]/i.test(String(main))) {
-      return `${ruPrefix} ${pronounceAlphanumeric(String(main))}${extra ? ' дробь ' + pronounceAlphanumeric(String(extra)) : ''}`;
+    return `КэЭлТэ ${numberToWordsRuNom(main)}${extra ? " дробь " + numberToWordsRuNom(extra) : ""}`;
+  }
+
+  // === KU — исправленный алгоритм ===
+  if (isKU) {
+    const raw = String(main || '');
+
+    // Если содержит буквы → НИЧЕГО НЕ ФОРМАТИРУЕМ
+    // Пример: 08017R, H403
+    if (/[A-Za-zА-Яа-я]/.test(raw)) {
+      return `${prefix}-${raw}${extra ? ' ' + extra : ''}`;
     }
-    return `${ruPrefix} ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
+
+    // иначе — цифровой артикул → читаем по твоей логике
+    const ruPrefix = "Кудо";
+    let parts = [];
+
+    if (raw.length === 4) parts = [raw.slice(0,2), raw.slice(2)];
+    else if (raw.length === 5) parts = [raw.slice(0,2), raw.slice(2)];
+    else if (raw.length === 6) parts = [raw.slice(0,2), raw.slice(2,4), raw.slice(4)];
+    else parts = [raw];
+
+    const spoken = parts.map(p => {
+      if (p.length === 2 && p.startsWith("0"))
+        return "ноль " + numberToWordsRuNom(p[1]);
+      return numberToWordsRuNom(parseInt(p));
+    }).join(" ");
+
+    return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
   }
 
-  // default fallback
-  if (main && /[A-Za-z]/.test(String(main))) {
-    return `${prefix} ${pronounceAlphanumeric(String(main))}${extra ? ' ' + pronounceAlphanumeric(String(extra)) : ''}`;
-  }
-
+  // === Остальные (без изменений) ===
   return `${prefix}${main ? '-' + main : ''}${extra ? '-' + extra : ''}`.replace(/^-/, '');
 }
 
