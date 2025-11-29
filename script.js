@@ -48,6 +48,19 @@ function arrayBufferToBinaryString(buf) {
   return result;
 }
 
+// ====== Небольшая helper-функция: нормализация похожих кириллических букв в латиницу
+// (ИСПРАВЛЕНИЕ: используется только для поиска по regex — исходные строки не меняются)
+function normalizeCyrToLat(s) {
+  if (!s || typeof s !== 'string') return s;
+  // Заменяем только те кириллические символы, которые часто путают с латиницей
+  return s
+    .replace(/К/g, 'K').replace(/к/g, 'k')
+    .replace(/Р/g, 'R').replace(/р/g, 'r')
+    .replace(/У/g, 'U').replace(/у/g, 'u')
+    .replace(/Т/g, 'T').replace(/т/g, 't')
+    .replace(/Л/g, 'L').replace(/л/g, 'l'); // на всякий случай
+}
+
 // ====== File input ======
 document.getElementById('file-input').addEventListener('change', handleFile, false);
 
@@ -203,7 +216,12 @@ function extractArticleFromTextRange(row, startCol, endCol) {
     if (cell === undefined || cell === null) continue;
     if (typeof cell !== 'string') cell = String(cell);
     cell = fixWin1251Mojibake(cell);
-    const match = cell.match(pattern);
+
+    // ИСПРАВЛЕНИЕ: используем нормализованную версию строки (кириллица->латиница) ТОЛЬКО для поиска по regex,
+    // чтобы корректно найти артикула, записанные смешанными символами (например "КU-08017R..." — кириллическая К + латинская U).
+    const cellForMatch = normalizeCyrToLat(cell);
+
+    const match = cellForMatch.match(pattern);
     if (match) {
       const prefix = match[1];
       const main = match[2] || null;
@@ -222,7 +240,11 @@ function extractArticleFromAnyCell(row) {
     if (cell === undefined || cell === null) continue;
     if (typeof cell !== 'string') cell = String(cell);
     cell = fixWin1251Mojibake(cell);
-    const match = cell.match(pattern);
+
+    // ИСПРАВЛЕНИЕ: тоже нормализуем только для поиска
+    const cellForMatch = normalizeCyrToLat(cell);
+
+    const match = cellForMatch.match(pattern);
     if (match) {
       const prefix = match[1];
       const main = match[2] || null;
@@ -300,11 +322,19 @@ function speakCurrent() {
 
   const it = items[currentIndex];
   const { prefix, main, extra, qty } = it;
-  let articleText = it.article; // по умолчанию берем оригинальный артикул
+  let articleText;
 
   if (prefix && ["KR", "КР", "KU", "КУ", "KLT"].includes(String(prefix).toUpperCase())) {
-    // ВАЖНО: здесь articleText для речи = результат formatArticle
     articleText = formatArticle(prefix, main, extra);
+  } else {
+    const cfg = currentConfig;
+    if (cfg) {
+      const row = it.row || [];
+      const textRange = collectRangeText(row, cfg.articleCols[0], cfg.articleCols[1]);
+      articleText = textRange || it.article;
+    } else {
+      articleText = it.article;
+    }
   }
 
   const qtyText = numberToWordsRu(qty);
@@ -371,49 +401,21 @@ function numberToWordsRu(num) {
   return num.toString();
 }
 
-// ====== format article (ИЗМЕНЕНА ТОЛЬКО ЭТА ФУНКЦИЯ) ======
+// ====== format article ======
 function formatArticle(prefix, main, extra) {
   const upperPrefix = String(prefix || '').toUpperCase();
   const isKR = upperPrefix.includes("KR") || upperPrefix.includes("КР");
   const isKU = upperPrefix.includes("KU") || upperPrefix.includes("КУ");
   const isKLT = upperPrefix === "KLT";
 
-  // helper: читаем буквы и цифры по-символно (локально внутри функции, чтобы не трогать остальной код)
-  function pronounceAlphanumeric(str) {
-    if (!str) return '';
-    const digitMap = {
-      '0':'ноль','1':'один','2':'два','3':'три','4':'четыре','5':'пять','6':'шесть','7':'семь','8':'восемь','9':'девять'
-    };
-    const letterMap = {
-      a:'эй', b:'би', c:'си', d:'ди', e:'и', f:'эф', g:'джи', h:'эйч', i:'ай', j:'джей', k:'кей', l:'эл', m:'эм',
-      n:'эн', o:'о', p:'пи', q:'кью', r:'эр', s:'эс', t:'ти', u:'ю', v:'ви', w:'дабл-ю', x:'икс', y:'уай', z:'зед'
-    };
-    const parts = [];
-    for (let ch of String(str)) {
-      if (/\d/.test(ch)) parts.push(digitMap[ch]);
-      else if (/[A-Za-z]/.test(ch)) parts.push(letterMap[ch.toLowerCase()] || ch);
-      else if (ch === '-' || ch === '.' || ch === '–' || ch === '—') continue;
-      else parts.push(ch);
-    }
-    return parts.join(' ').replace(/\s+/g,' ').trim();
+  if (isKR) {
+    const ruPrefix = "КаЭр";
+    return `${ruPrefix} ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
   }
 
-  // ... (логика для KR, KLT остается без изменений)
-
   if (isKU) {
-    const raw = String(main || '');
-
-    // Если есть буквы — используем pronounceAlphanumeric ТОЛЬКО для речи
-    if (/[A-Za-zА-Яа-я]/.test(raw)) {
-        // Мы возвращаем строку для произношения, а не для отображения.
-        // Отображение в таблице должно брать it.article.
-        // Для речи читаем префикс и алфавитно-цифровую часть.
-        const spokenPrefix = upperPrefix.includes("КУ") ? "Ку" : prefix;
-        return `${spokenPrefix} ${pronounceAlphanumeric(raw)}${extra ? ' ' + pronounceAlphanumeric(extra) : ''}`;
-    }
-
-    // Чисто цифровой main — читаем как "Кудо ..."
     const ruPrefix = "Кудо";
+    const raw = String(main || '');
     let parts = [];
     if (raw.length === 4) parts = [raw.slice(0,2), raw.slice(2)];
     else if (raw.length === 5) parts = [raw.slice(0,2), raw.slice(2)];
@@ -422,16 +424,16 @@ function formatArticle(prefix, main, extra) {
 
     const spoken = parts.map(p => {
       if (p.length === 2 && p.startsWith("0")) return "ноль " + numberToWordsRuNom(p[1]);
-      return numberToWordsRuNom(parseInt(p));
+      else return numberToWordsRuNom(parseInt(p));
     }).join(" ");
+
+    if (isKLT) return `КэЭлТэ ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
 
     return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
   }
 
-  // Остальные — стандартный формат (не трогаем логику)
   return `${prefix}${main ? '-' + main : ''}${extra ? '-' + extra : ''}`.replace(/^-/, '');
 }
-
 
 // ====== qty suffix ======
 function getQtySuffix(num) {
