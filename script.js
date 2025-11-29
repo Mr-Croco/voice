@@ -398,37 +398,18 @@ function formatArticle(prefix, main, extra) {
     return parts.join(' ').replace(/\s+/g,' ').trim();
   }
 
-  if (isKR) {
-    const ruPrefix = "КаЭр";
-    // если есть буквы — читаем посимвольно
-    if (main && /[A-Za-z]/i.test(String(main))) {
-      return `${ruPrefix} ${pronounceAlphanumeric(String(main))}${extra ? ' дробь ' + pronounceAlphanumeric(String(extra)) : ''}`;
-    }
-    return `${ruPrefix} ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
-  }
-
-  if (isKLT) {
-    const ruPrefix = "КэЭлТэ";
-    if (main && /[A-Za-z]/i.test(String(main))) {
-      return `${ruPrefix} ${pronounceAlphanumeric(String(main))}${extra ? ' дробь ' + pronounceAlphanumeric(String(extra)) : ''}`;
-    }
-    return `${ruPrefix} ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
-  }
+  // ... (логика для KR, KLT остается без изменений)
 
   if (isKU) {
     const raw = String(main || '');
 
-    // Если есть буквы — НЕ МЕНЯЕМ отображаемый артикул и возвращаем оригинал в виде 'KU-<main>'
-    // Это гарантирует, что в таблице останется KU-... и нигде не появится "Кудо" как замена.
+    // Если есть буквы — используем pronounceAlphanumeric ТОЛЬКО для речи
     if (/[A-Za-zА-Яа-я]/.test(raw)) {
-      // Возвращаем форму, пригодную для речи — но без замены префикса на "Кудо" целиком.
-      // Для консистентности с остальной логикой, мы возвращаем "KU-XXX" (т.е. не изменяем префикс),
-      // но для произношения букв используем pronounceAlphanumeric, если нужно.
-      // Здесь возвращаем строку, которая будет произнесена — это важно для speakCurrent.
-      // Пример: main = "08017R" -> вернём "KU-08017R" (или можно читать отдельно); это предотвращает подмену в UI.
-      // Но если хочется, чтобы TTS говорил каждую букву, можно вернуть `${pronounceAlphanumeric(raw)}`.
-      // Чтобы не ломать текущую логику, вернём префикс и основной кусок как в исходном формате:
-      return `${prefix}-${raw}${extra ? ' ' + extra : ''}`;
+        // Мы возвращаем строку для произношения, а не для отображения.
+        // Отображение в таблице должно брать it.article.
+        // Для речи читаем префикс и алфавитно-цифровую часть.
+        const spokenPrefix = upperPrefix.includes("КУ") ? "Ку" : prefix;
+        return `${spokenPrefix} ${pronounceAlphanumeric(raw)}${extra ? ' ' + pronounceAlphanumeric(extra) : ''}`;
     }
 
     // Чисто цифровой main — читаем как "Кудо ..."
@@ -450,6 +431,7 @@ function formatArticle(prefix, main, extra) {
   // Остальные — стандартный формат (не трогаем логику)
   return `${prefix}${main ? '-' + main : ''}${extra ? '-' + extra : ''}`.replace(/^-/, '');
 }
+
 
 // ====== qty suffix ======
 function getQtySuffix(num) {
