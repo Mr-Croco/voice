@@ -425,30 +425,66 @@ function pronounceLatinLetter(letter) {
   return map[up] || up.toLowerCase();
 }
 
-// Произношение цифровой последовательности для KU:
-// - читаем по цифрам, но если встречаем подряд два символа, дающие число 10-19, читаем их как одно слово (десять..девятнадцать)
-function pronounceNumericSequenceForKU(numStr) {
+// ====== Генерация произношения цифровой последовательности для KU ======
+// Правила:
+// - Разбиваем строку цифр в группы по 2 слева направо.
+// - Если длина нечётная AND длина > 3, оставляем последнюю группу из 3 цифр (чтобы читать сотни как "двести сорок").
+// - Если длина == 3 -> читаем как целое трехзначное число.
+// - Для пары, начинающейся с '0', читаем как "ноль X" (например '02' -> 'ноль два').
+// - Для двух цифр 10-19 читаем как "десять ...", иначе используем numberToWordsRuNom для пары.
+function pronounceNumericSequenceForKU_grouped(numStr) {
   if (!numStr) return '';
-  const digits = numStr.split('');
-  const out = [];
-  for (let i = 0; i < digits.length; ) {
-    const cur = digits[i];
-    const next = digits[i+1];
-    if (next !== undefined) {
-      const pair = cur + next;
-      const pairNum = parseInt(pair, 10);
-      if (!isNaN(pairNum) && pairNum >= 10 && pairNum <= 19) {
-        out.push(numberToWordsRuNom(pairNum));
-        i += 2;
-        continue;
-      }
-    }
-    // одиночная цифра
-    if (cur === '0') out.push('ноль');
-    else out.push(numberToWordsRuNom(parseInt(cur,10)));
-    i += 1;
+  const digitsOnly = String(numStr).replace(/\D/g, '');
+  if (!digitsOnly) return '';
+
+  const len = digitsOnly.length;
+
+  // If length is 1 or 2 -> handle directly
+  if (len <= 2) {
+    if (len === 1) return numberToWordsRuNom(parseInt(digitsOnly, 10));
+    const pairNum = parseInt(digitsOnly, 10);
+    if (pairNum >= 10 && pairNum <= 19) return numberToWordsRuNom(pairNum);
+    if (digitsOnly[0] === '0') return 'ноль ' + numberToWordsRuNom(parseInt(digitsOnly[1], 10));
+    return numberToWordsRuNom(pairNum);
   }
-  return out.join(' ');
+
+  // If length == 3 -> read as whole (hundreds)
+  if (len === 3) {
+    return numberToWordsRuNom(parseInt(digitsOnly, 10));
+  }
+
+  // For length > 3
+  const groups = [];
+  if (len % 2 === 0) {
+    // even -> simple pairs
+    for (let i = 0; i < len; i += 2) groups.push(digitsOnly.slice(i, i+2));
+  } else {
+    // odd
+    // special case: if len === 5 -> make groups [2,3]
+    // general rule: make last group length 3, preceding groups pairs
+    const lastSize = 3;
+    const prefixLen = len - lastSize;
+    for (let i = 0; i < prefixLen; i += 2) groups.push(digitsOnly.slice(i, i+2));
+    groups.push(digitsOnly.slice(prefixLen));
+  }
+
+  const spokenParts = groups.map(g => {
+    if (g.length === 3) {
+      return numberToWordsRuNom(parseInt(g, 10));
+    }
+    // g.length === 2
+    const pairNum = parseInt(g, 10);
+    if (!isNaN(pairNum) && pairNum >= 10 && pairNum <= 19) {
+      return numberToWordsRuNom(pairNum);
+    }
+    if (g[0] === '0') {
+      // '02' -> 'ноль два'
+      return 'ноль ' + numberToWordsRuNom(parseInt(g[1], 10));
+    }
+    return numberToWordsRuNom(pairNum);
+  });
+
+  return spokenParts.join(' ');
 }
 
 // ====== format article ======
@@ -461,18 +497,18 @@ function formatArticle(prefix, main, extra) {
   // Небольшая защита: если main — undefined/null, приводим к пустой строке
   const mainRaw = main == null ? '' : String(main);
 
-  // Унифицируем разделители (точка, слэш, дефис)
-  const mainNormalized = mainRaw.replace(/[\/–—]/g, '-');
+  // Унифицируем разделители (точка, слэш, дефис, запятая)
+  const mainNormalized = mainRaw.replace(/[\/\.\,–—\s]+/g, '-').replace(/-+/g, '-').trim();
 
   if (isKR) {
     const ruPrefix = "КаЭр";
-    // Если есть дробь (например 905-3), разделяем
+    // Если есть дробь (например 905-3 или 960.3) — уже заменили разделители на '-', поэтому ищем '-'
     if (mainNormalized.includes('-')) {
       const parts = mainNormalized.split('-').filter(Boolean);
       // читаем первую часть как число (целое)
       const first = parts[0] || '';
       const second = parts[1] || '';
-      const firstSpoken = numberToWordsRuNom(parseInt(first, 10));
+      const firstSpoken = first ? numberToWordsRuNom(parseInt(first, 10)) : '';
       const secondSpoken = second ? numberToWordsRuNom(parseInt(second, 10)) : '';
       return `${ruPrefix} ${firstSpoken}${secondSpoken ? ' дробь ' + secondSpoken : ''}`;
     } else {
@@ -485,23 +521,25 @@ function formatArticle(prefix, main, extra) {
     const ruPrefix = "Кудо";
     // main может содержать цифры и буквы, например 08017R или 311A и т.п.
     // разобьём на цифровую часть и буквы в конце
+    // сначала нормализуем (убрали пробелы/точки/другие сепараторы)
     const m = mainNormalized.match(/^([0-9]+)([A-Za-zА-Яа-я]*)$/);
     if (m) {
       const digits = m[1] || '';
       const letters = m[2] || '';
 
-      const digitsSpoken = pronounceNumericSequenceForKU(digits);
+      // читаем цифровую часть группами (по парам, с правилом о последней группе в 3 при нечётной длине > 3)
+      const digitsSpoken = pronounceNumericSequenceForKU_grouped(digits);
 
       let lettersSpoken = '';
       if (letters) {
-        // для каждой буквы проговариваем её (латинские/кириллица приводим к латинской форме при normalizeCyrToLat)
+        // приводим кириллицу к латинице, затем читаем по буквам
         const lat = normalizeCyrToLat(letters);
         const chars = lat.split('');
         const parts = chars.map(ch => pronounceLatinLetter(ch));
         lettersSpoken = parts.join(' ');
       }
 
-      // Если есть дополнительная часть extra — добавляем её (как есть)
+      // Если есть дополнительная часть extra — читаем её как есть (если это число — можно обработать, но пока добавляем как текст)
       const extraSpoken = extra ? (' ' + extra) : '';
 
       return `${ruPrefix} ${digitsSpoken}${lettersSpoken ? ' ' + lettersSpoken : ''}${extraSpoken}`;
@@ -509,7 +547,7 @@ function formatArticle(prefix, main, extra) {
       // fallback — не чисто цифры+буквы, просто пытаемся произнести целиком
       const tokenized = mainNormalized.split(/[-.]/).filter(Boolean);
       const spokenParts = tokenized.map(t => {
-        if (/^[0-9]+$/.test(t)) return pronounceNumericSequenceForKU(t);
+        if (/^[0-9]+$/.test(t)) return pronounceNumericSequenceForKU_grouped(t);
         if (/^[A-Za-zА-Яа-я]+$/.test(t)) return t.split('').map(ch => pronounceLatinLetter(ch)).join(' ');
         return t;
       }).join(' ');
