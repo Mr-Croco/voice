@@ -29,7 +29,6 @@ function setDocTypeLabel(text) {
 // ====== Mojibake fixer + utils ======
 function fixWin1251Mojibake(str) {
   if (!str || typeof str !== 'string') return str;
-  // Если в строке нет подозрительных символов — не трогаем
   if (!/[ÃÐÂ]/.test(str)) return str;
   try {
     return decodeURIComponent(escape(str));
@@ -48,17 +47,26 @@ function arrayBufferToBinaryString(buf) {
   return result;
 }
 
-// ====== Небольшая helper-функция: нормализация похожих кириллических букв в латиницу
-// (ИСПРАВЛЕНИЕ: используется только для поиска по regex — исходные строки не меняются)
+// ====== НОВАЯ, УЛУЧШЕННАЯ нормализация похожих кириллических букв ======
 function normalizeCyrToLat(s) {
   if (!s || typeof s !== 'string') return s;
-  // Заменяем только те кириллические символы, которые часто путают с латиницей
-  return s
-    .replace(/К/g, 'K').replace(/к/g, 'k')
-    .replace(/Р/g, 'R').replace(/р/g, 'r')
-    .replace(/У/g, 'U').replace(/у/g, 'u')
-    .replace(/Т/g, 'T').replace(/т/g, 't')
-    .replace(/Л/g, 'L').replace(/л/g, 'l'); // на всякий случай
+
+  const map = {
+    'А':'A','а':'A',
+    'В':'B','в':'B',
+    'Е':'E','е':'E',
+    'К':'K','к':'K',
+    'М':'M','м':'M',
+    'Н':'H','н':'H',
+    'О':'O','о':'O',
+    'Р':'P','р':'P',
+    'С':'C','с':'C',
+    'Т':'T','т':'T',
+    'У':'Y','у':'Y',
+    'Х':'X','х':'X'
+  };
+
+  return s.replace(/[А-Яа-я]/g, ch => map[ch] || ch);
 }
 
 // ====== File input ======
@@ -79,10 +87,8 @@ function handleFile(e) {
 
     let workbook;
     try {
-      // Попытка с codepage — если сборка sheetjs поддерживает cptable
       workbook = XLSX.read(binary, { type: 'binary', codepage: 1251, raw: false });
     } catch (err) {
-      // fallback
       try {
         workbook = XLSX.read(binary, { type: 'binary', raw: false });
       } catch (err2) {
@@ -129,7 +135,7 @@ function detectDocType(json) {
 }
 
 function getConfigForType(type) {
-  const commonQty = [20, 22]; // U..W => 20..22
+  const commonQty = [20, 22];
   switch (type) {
     case 'rashod':
       return { type: 'rashod', label: 'Расходная накладная', startRowIndex: 8, articleCols: [3, 19], qtyCols: commonQty, numCols: null };
@@ -160,7 +166,6 @@ function parseWithConfig(json, cfg) {
     const candidateText = (articleRangeText || '') + ' ' + (primaryCell || '');
     const fullArticleText = (candidateText || '').toString().trim();
 
-    // qty
     let qty = 0;
     if (cfg.qtyCols && cfg.qtyCols.length === 2) {
       for (let c = cfg.qtyCols[0]; c <= cfg.qtyCols[1]; c++) {
@@ -211,50 +216,57 @@ function collectRangeText(row, startCol, endCol) {
 // ====== Extract article by patterns ======
 function extractArticleFromTextRange(row, startCol, endCol) {
   const pattern = /(KR|KU|КР|КУ|KLT|PT|РТ)[-.\s–—]?([\w\d.-]+)/i;
+
   for (let c = startCol; c <= endCol; c++) {
     let cell = row[c];
     if (cell === undefined || cell === null) continue;
+
     if (typeof cell !== 'string') cell = String(cell);
     cell = fixWin1251Mojibake(cell);
 
-    // ИСПРАВЛЕНИЕ: используем нормализованную версию строки (кириллица->латиница) ТОЛЬКО для поиска по regex,
-    // чтобы корректно найти артикула, записанные смешанными символами (например "КU-08017R..." — кириллическая К + латинская U).
     const cellForMatch = normalizeCyrToLat(cell);
-
     const match = cellForMatch.match(pattern);
+
     if (match) {
       const prefix = match[1];
       const main = match[2] || null;
+
       if (prefix.toUpperCase() === 'PT') {
         return { article: collectRangeText(row, startCol, endCol), prefix: 'PT', main: null, extra: null };
       }
+
       return { article: `${prefix}-${main}`, prefix, main, extra: null };
     }
   }
+
   return null;
 }
 
 function extractArticleFromAnyCell(row) {
   const pattern = /(KR|KU|КР|КУ|KLT|PT|РТ)[-.\s–—]?([\w\d.-]+)/i;
+
   for (let cell of row) {
     if (cell === undefined || cell === null) continue;
+
     if (typeof cell !== 'string') cell = String(cell);
     cell = fixWin1251Mojibake(cell);
 
-    // ИСПРАВЛЕНИЕ: тоже нормализуем только для поиска
     const cellForMatch = normalizeCyrToLat(cell);
-
     const match = cellForMatch.match(pattern);
+
     if (match) {
       const prefix = match[1];
       const main = match[2] || null;
+
       if (prefix.toUpperCase() === 'PT') {
         const joined = row.map(c => (c === undefined || c === null) ? '' : fixWin1251Mojibake(String(c))).filter(Boolean).join(', ');
         return { article: joined, prefix: 'PT', main: null, extra: null };
       }
+
       return { article: `${prefix}-${main}`, prefix, main, extra: null };
     }
   }
+
   return null;
 }
 
@@ -382,7 +394,7 @@ function numberToWordsRu(num) {
   if (isNaN(num)) return String(num);
 
   const ones = ["ноль","одну","две","три","четыре","пять","шесть","семь","восемь","девять"];
-  const teens = ["десять","одиннадцать","двенадцать","тринадцать","четырнадцать","пятнадцать","шестнадцать","семнадцать","восемнадцать","девятнадцать"];
+  const teens = ["десять","одиннадцать","двенадцать","двенадцать","тринадцать","четырнадцать","пятнадцать","шестнадцать","семнадцать","восемьдесят","девятнадцать"];
   const tens = ["","","двадцать","тридцать","сорок","пятьдесят","шестьдесят","семьдесят","восемьдесят","девяносто"];
   const hundreds = ["","сто","двести","триста","четыреста","пятьсот","шестьсот","семьсот","восемьсот","девятьсот"];
 
@@ -417,6 +429,7 @@ function formatArticle(prefix, main, extra) {
     const ruPrefix = "Кудо";
     const raw = String(main || '');
     let parts = [];
+
     if (raw.length === 4) parts = [raw.slice(0,2), raw.slice(2)];
     else if (raw.length === 5) parts = [raw.slice(0,2), raw.slice(2)];
     else if (raw.length === 6) parts = [raw.slice(0,2), raw.slice(2,4), raw.slice(4)];
@@ -444,7 +457,7 @@ function getQtySuffix(num) {
   return "штук";
 }
 
-// ====== speech recognition ======
+// ====== Распознавание речи ======
 function startListening() {
   if (!SpeechRecognition) {
     console.warn('SpeechRecognition не поддерживается в этом браузере');
@@ -508,6 +521,7 @@ function speakNextUnprocessed() {
 
 function handleVoiceCommand(cmd) {
   if (!cmd) return;
+
   if (["готово","положил","ок"].some(k => cmd === k || cmd.includes(k))) {
     items[currentIndex].checked = true;
     speakNextUnprocessed();
@@ -523,6 +537,7 @@ function handleVoiceCommand(cmd) {
   } else {
     console.log("Команда не распознана как управление:", cmd);
   }
+
   renderTable(totalRowsInSheet);
 }
 
