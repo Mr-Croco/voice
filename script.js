@@ -394,7 +394,7 @@ function numberToWordsRu(num) {
   if (isNaN(num)) return String(num);
 
   const ones = ["ноль","одну","две","три","четыре","пять","шесть","семь","восемь","девять"];
-  const teens = ["десять","одиннадцать","двенадцать","двенадцать","тринадцать","четырнадцать","пятнадцать","шестнадцать","семнадцать","восемьдесят","девятнадцать"];
+  const teens = ["десять","одиннадцать","двенадцать","тринадцать","четырнадцать","пятнадцать","шестнадцать","семнадцать","восемнадцать","девятнадцать"];
   const tens = ["","","двадцать","тридцать","сорок","пятьдесят","шестьдесят","семьдесят","восемьдесят","девяносто"];
   const hundreds = ["","сто","двести","триста","четыреста","пятьсот","шестьсот","семьсот","восемьсот","девятьсот"];
 
@@ -413,6 +413,44 @@ function numberToWordsRu(num) {
   return num.toString();
 }
 
+// ====== вспомогательные для правильного чтения цифр/букв ======
+function pronounceLatinLetter(letter) {
+  const map = {
+    A: 'аш', B: 'би', C: 'си', D: 'ди', E: 'эш', F: 'эф', G: 'джи',
+    H: 'аш', I: 'ай', J: 'джей', K: 'ка', L: 'эль', M: 'эм', N: 'эн',
+    O: 'о', P: 'пэ', Q: 'ку', R: 'эр', S: 'эс', T: 'тэ', U: 'ю',
+    V: 'вэ', W: 'дабл-ю', X: 'икс', Y: 'вай', Z: 'зэт'
+  };
+  const up = String(letter || '').toUpperCase();
+  return map[up] || up.toLowerCase();
+}
+
+// Произношение цифровой последовательности для KU:
+// - читаем по цифрам, но если встречаем подряд два символа, дающие число 10-19, читаем их как одно слово (десять..девятнадцать)
+function pronounceNumericSequenceForKU(numStr) {
+  if (!numStr) return '';
+  const digits = numStr.split('');
+  const out = [];
+  for (let i = 0; i < digits.length; ) {
+    const cur = digits[i];
+    const next = digits[i+1];
+    if (next !== undefined) {
+      const pair = cur + next;
+      const pairNum = parseInt(pair, 10);
+      if (!isNaN(pairNum) && pairNum >= 10 && pairNum <= 19) {
+        out.push(numberToWordsRuNom(pairNum));
+        i += 2;
+        continue;
+      }
+    }
+    // одиночная цифра
+    if (cur === '0') out.push('ноль');
+    else out.push(numberToWordsRuNom(parseInt(cur,10)));
+    i += 1;
+  }
+  return out.join(' ');
+}
+
 // ====== format article ======
 function formatArticle(prefix, main, extra) {
   const upperPrefix = String(prefix || '').toUpperCase();
@@ -420,29 +458,67 @@ function formatArticle(prefix, main, extra) {
   const isKU = upperPrefix.includes("KU") || upperPrefix.includes("КУ");
   const isKLT = upperPrefix === "KLT";
 
+  // Небольшая защита: если main — undefined/null, приводим к пустой строке
+  const mainRaw = main == null ? '' : String(main);
+
+  // Унифицируем разделители (точка, слэш, дефис)
+  const mainNormalized = mainRaw.replace(/[\/–—]/g, '-');
+
   if (isKR) {
     const ruPrefix = "КаЭр";
-    return `${ruPrefix} ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
+    // Если есть дробь (например 905-3), разделяем
+    if (mainNormalized.includes('-')) {
+      const parts = mainNormalized.split('-').filter(Boolean);
+      // читаем первую часть как число (целое)
+      const first = parts[0] || '';
+      const second = parts[1] || '';
+      const firstSpoken = numberToWordsRuNom(parseInt(first, 10));
+      const secondSpoken = second ? numberToWordsRuNom(parseInt(second, 10)) : '';
+      return `${ruPrefix} ${firstSpoken}${secondSpoken ? ' дробь ' + secondSpoken : ''}`;
+    } else {
+      // простая числовая часть
+      return `${ruPrefix} ${numberToWordsRuNom(parseInt(mainNormalized, 10))}`;
+    }
   }
 
   if (isKU) {
     const ruPrefix = "Кудо";
-    const raw = String(main || '');
-    let parts = [];
+    // main может содержать цифры и буквы, например 08017R или 311A и т.п.
+    // разобьём на цифровую часть и буквы в конце
+    const m = mainNormalized.match(/^([0-9]+)([A-Za-zА-Яа-я]*)$/);
+    if (m) {
+      const digits = m[1] || '';
+      const letters = m[2] || '';
 
-    if (raw.length === 4) parts = [raw.slice(0,2), raw.slice(2)];
-    else if (raw.length === 5) parts = [raw.slice(0,2), raw.slice(2)];
-    else if (raw.length === 6) parts = [raw.slice(0,2), raw.slice(2,4), raw.slice(4)];
-    else parts = [raw];
+      const digitsSpoken = pronounceNumericSequenceForKU(digits);
 
-    const spoken = parts.map(p => {
-      if (p.length === 2 && p.startsWith("0")) return "ноль " + numberToWordsRuNom(p[1]);
-      else return numberToWordsRuNom(parseInt(p));
-    }).join(" ");
+      let lettersSpoken = '';
+      if (letters) {
+        // для каждой буквы проговариваем её (латинские/кириллица приводим к латинской форме при normalizeCyrToLat)
+        const lat = normalizeCyrToLat(letters);
+        const chars = lat.split('');
+        const parts = chars.map(ch => pronounceLatinLetter(ch));
+        lettersSpoken = parts.join(' ');
+      }
 
-    if (isKLT) return `КэЭлТэ ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
+      // Если есть дополнительная часть extra — добавляем её (как есть)
+      const extraSpoken = extra ? (' ' + extra) : '';
 
-    return `${ruPrefix} ${spoken}${extra ? ' ' + extra : ''}`;
+      return `${ruPrefix} ${digitsSpoken}${lettersSpoken ? ' ' + lettersSpoken : ''}${extraSpoken}`;
+    } else {
+      // fallback — не чисто цифры+буквы, просто пытаемся произнести целиком
+      const tokenized = mainNormalized.split(/[-.]/).filter(Boolean);
+      const spokenParts = tokenized.map(t => {
+        if (/^[0-9]+$/.test(t)) return pronounceNumericSequenceForKU(t);
+        if (/^[A-Za-zА-Яа-я]+$/.test(t)) return t.split('').map(ch => pronounceLatinLetter(ch)).join(' ');
+        return t;
+      }).join(' ');
+      return `${ruPrefix} ${spokenParts}${extra ? ' ' + extra : ''}`;
+    }
+  }
+
+  if (isKLT) {
+    return `КэЭлТэ ${numberToWordsRuNom(main)}${extra ? ' дробь ' + numberToWordsRuNom(extra) : ''}`;
   }
 
   return `${prefix}${main ? '-' + main : ''}${extra ? '-' + extra : ''}`.replace(/^-/, '');
